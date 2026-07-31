@@ -123,7 +123,7 @@ function FlowStep({ mode, step }: { mode: string; step: number }) {
     if (step === 2) return <Form layout="vertical" className={styles.formGrid}><Form.Item label="HTTP 方法"><Select defaultValue="GET" options={["GET","POST","PUT"].map((x) => ({ value: x, label: x }))} /></Form.Item><Form.Item label="路径模板"><Input defaultValue="/api/v3/ticker/price" /></Form.Item><Form.Item label="参数映射" className={styles.full}><Input.TextArea rows={4} defaultValue={'{"symbol":"query.symbol"}'} /></Form.Item></Form>;
     if (step === 3) return <Form layout="vertical"><Form.Item label="输入 Schema"><Input.TextArea rows={7} defaultValue={'{"type":"object","properties":{"symbol":{"type":"string"}},"required":["symbol"]}'} /></Form.Item></Form>;
     if (step === 4) return <Form layout="vertical"><Form.Item label="只读与风险"><Space wrap><Switch defaultChecked /> 只读 <RiskBadge risk="low" /></Space></Form.Item><Alert type="success" showIcon message="该 Tool 仅执行公开行情查询，判定为低风险。" /></Form>;
-    if (step === 5) return <Form layout="vertical"><Form.Item label="测试参数"><Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} defaultValue='{"symbol":"BTCUSDT"}' /></Form.Item><Alert type="success" showIcon message="Mock 测试通过：HTTP 200，Schema 校验成功。" /></Form>;
+    if (step === 5) return <Form layout="vertical"><Form.Item label="测试参数"><Input.TextArea data-testid="test-parameters" autoSize={{ minRows: 3, maxRows: 6 }} defaultValue='{"symbol":"BTCUSDT"}' /></Form.Item><Alert type="success" showIcon message="Mock 测试通过：HTTP 200，Schema 校验成功。" /></Form>;
     return <Alert type="info" showIcon message="配置检查完成" description="保存后将生成 REST Tool 草稿，可加入 MCP 或 OpenAPI Publication。" />;
   }
   if (mode === "import-openapi") {
