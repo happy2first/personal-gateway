@@ -84,20 +84,54 @@ function EntityDetail({ section, id }: { section: string; id: string }) {
 
 function ToolFlow({ mode }: { mode: string }) {
   const meta = mode === "new-rest" ? ["新增 REST Tool", "基本信息", "Connection", "参数映射", "Schema", "风险", "测试", "保存"] : mode === "import-openapi" ? ["导入 OpenAPI", "文档", "模拟解析", "选择 Operation", "批量调整", "导入 Tool"] : ["注册远程 MCP", "地址与认证", "连接测试", "发现 Tool", "选择导入", "完成"];
-  const [current, setCurrent] = useState(0); const [done, setDone] = useState(false); const steps = meta.slice(1);
+  const [current, setCurrent] = useState(0);
+  const [done, setDone] = useState(false);
+  const steps = meta.slice(1);
+
+  const moveTo = (next: number) => {
+    setCurrent(next);
+    window.requestAnimationFrame(() => document.querySelector("[data-testid='wizard-card']")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
   return <>
     <PageHeader title={meta[0]} subtitle="Mock 流程不会连接真实账号或保存真实密钥" />
-    <Card><Steps current={current} responsive size="small" items={steps.map((title) => ({ title }))} /><Divider />
-      {done ? <Alert type="success" showIcon message="流程已完成，已生成 Tool 草稿" description="原型中数据不会持久化；正式版将通过 Mock Service 契约替换为真实 API。" /> : <FlowStep mode={mode} />}
-      <div className={styles.stickyActions}><Button disabled={current === 0 || done} onClick={() => setCurrent((v) => v - 1)}>上一步</Button><Button type="primary" onClick={() => current === steps.length - 1 ? setDone(true) : setCurrent((v) => v + 1)}>{current === steps.length - 1 ? "保存" : "下一步"}</Button></div>
-    </Card>
+    <div className={styles.wizard} data-testid="wizard-card">
+      <Card><Steps current={current} responsive size="small" items={steps.map((title) => ({ title }))} /><Divider />
+        {done ? <Alert type="success" showIcon message="流程已完成，已生成 Tool 草稿" description="原型中数据不会持久化；正式版将通过 Mock Service 契约替换为真实 API。" /> : <>
+          <Typography.Title level={5} className={styles.stepTitle} data-testid="wizard-step-title">当前步骤：{steps[current]}</Typography.Title>
+          <FlowStep mode={mode} step={current} />
+        </>}
+        <div className={styles.stickyActions} data-testid="wizard-actions">
+          <Button disabled={current === 0 || done} onClick={() => moveTo(current - 1)}>上一步</Button>
+          <Button type="primary" disabled={done} onClick={() => current === steps.length - 1 ? setDone(true) : moveTo(current + 1)}>{current === steps.length - 1 ? "保存" : "下一步"}</Button>
+        </div>
+      </Card>
+    </div>
   </>;
 }
 
-function FlowStep({ mode }: { mode: string }) {
-  if (mode === "new-rest") return <Form layout="vertical" className={styles.formGrid}><Form.Item label="Tool 显示名称" required><Input defaultValue="查询公共行情" /></Form.Item><Form.Item label="稳定唯一名称" required><Input defaultValue="market_ticker" /></Form.Item><Form.Item label="Connection"><Select defaultValue="binance" options={[{ value: "binance", label: "币安公共行情 REST" }, { value: "baidu", label: "我的百度网盘" }]} /></Form.Item><Form.Item label="HTTP 方法"><Select defaultValue="GET" options={["GET","POST","PUT"].map((x) => ({ value: x, label: x }))} /></Form.Item><Form.Item label="路径模板" className={styles.full}><Input addonBefore="https://api.binance.com" defaultValue="/api/v3/ticker/price" /></Form.Item><Form.Item label="输入 Schema" className={styles.full}><Input.TextArea rows={5} defaultValue={'{"type":"object","properties":{"symbol":{"type":"string"}},"required":["symbol"]}'} /></Form.Item><Form.Item label="只读与风险"><Space><Switch defaultChecked /> 只读 <RiskBadge risk="low" /></Space></Form.Item><Form.Item label="测试参数"><Input defaultValue='{"symbol":"BTCUSDT"}' /></Form.Item></Form>;
-  if (mode === "import-openapi") return <><Form layout="vertical"><Form.Item label="OpenAPI URL 或文档"><Input defaultValue="https://example.test/openapi.json" /></Form.Item></Form><Alert type="warning" showIcon message="已模拟解析 8 个 Operation；默认排除 deleteFile、sendMail、createOrder 三个高风险接口。" /><Divider /><Checkbox.Group defaultValue={["searchFiles","getFileMeta","listFolders"]} options={["searchFiles","getFileMeta","listFolders","deleteFile（高风险，默认排除）","sendMail（V1 禁止）"]} /></>;
-  return <><Form layout="vertical"><Form.Item label="远程 MCP URL"><Input defaultValue="https://mcp.example.test/mcp" /></Form.Item><Form.Item label="传输方式"><Radio.Group defaultValue="http"><Radio value="http">Streamable HTTP</Radio><Radio value="sse">SSE</Radio></Radio.Group></Form.Item></Form><Alert type="success" showIcon message="Mock 连接测试成功，发现 4 个 Tool" /><Divider /><Checkbox.Group defaultValue={["weather_lookup","forecast_daily"]} options={["weather_lookup","forecast_daily","geocode","admin_delete_cache（高风险，默认排除）"]} /></>;
+function FlowStep({ mode, step }: { mode: string; step: number }) {
+  if (mode === "new-rest") {
+    if (step === 0) return <Form layout="vertical" className={styles.formGrid}><Form.Item label="Tool 显示名称" required><Input defaultValue="查询公共行情" /></Form.Item><Form.Item label="稳定唯一名称" required><Input defaultValue="market_ticker" /></Form.Item></Form>;
+    if (step === 1) return <Form layout="vertical"><Form.Item label="Connection"><Select defaultValue="binance" options={[{ value: "binance", label: "币安公共行情 REST" }, { value: "baidu", label: "我的百度网盘" }]} /></Form.Item><Alert type="info" showIcon message="凭证由 Connection 管理，不会写入 Tool 或暴露给 AI 客户端。" /></Form>;
+    if (step === 2) return <Form layout="vertical" className={styles.formGrid}><Form.Item label="HTTP 方法"><Select defaultValue="GET" options={["GET","POST","PUT"].map((x) => ({ value: x, label: x }))} /></Form.Item><Form.Item label="路径模板"><Input defaultValue="/api/v3/ticker/price" /></Form.Item><Form.Item label="参数映射" className={styles.full}><Input.TextArea rows={4} defaultValue={'{"symbol":"query.symbol"}'} /></Form.Item></Form>;
+    if (step === 3) return <Form layout="vertical"><Form.Item label="输入 Schema"><Input.TextArea rows={7} defaultValue={'{"type":"object","properties":{"symbol":{"type":"string"}},"required":["symbol"]}'} /></Form.Item></Form>;
+    if (step === 4) return <Form layout="vertical"><Form.Item label="只读与风险"><Space wrap><Switch defaultChecked /> 只读 <RiskBadge risk="low" /></Space></Form.Item><Alert type="success" showIcon message="该 Tool 仅执行公开行情查询，判定为低风险。" /></Form>;
+    if (step === 5) return <Form layout="vertical"><Form.Item label="测试参数"><Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} defaultValue='{"symbol":"BTCUSDT"}' /></Form.Item><Alert type="success" showIcon message="Mock 测试通过：HTTP 200，Schema 校验成功。" /></Form>;
+    return <Alert type="info" showIcon message="配置检查完成" description="保存后将生成 REST Tool 草稿，可加入 MCP 或 OpenAPI Publication。" />;
+  }
+  if (mode === "import-openapi") {
+    if (step === 0) return <Form layout="vertical"><Form.Item label="OpenAPI URL 或文档"><Input defaultValue="https://example.test/openapi.json" /></Form.Item></Form>;
+    if (step === 1) return <Alert type="warning" showIcon message="已模拟解析 8 个 Operation" description="默认排除 deleteFile、sendMail、createOrder 三个高风险接口。" />;
+    if (step === 2) return <Checkbox.Group defaultValue={["searchFiles","getFileMeta","listFolders"]} options={["searchFiles","getFileMeta","listFolders","deleteFile（高风险，默认排除）","sendMail（V1 禁止）"]} />;
+    if (step === 3) return <Form layout="vertical"><Form.Item label="批量风险级别"><Select defaultValue="low" options={[{ value: "low", label: "低风险 / 只读" }, { value: "medium", label: "中风险" }]} /></Form.Item></Form>;
+    return <Alert type="info" showIcon message="将导入 3 个只读 Tool" />;
+  }
+  if (step === 0) return <Form layout="vertical"><Form.Item label="远程 MCP URL"><Input defaultValue="https://mcp.example.test/mcp" /></Form.Item><Form.Item label="传输方式"><Radio.Group defaultValue="http"><Radio value="http">Streamable HTTP</Radio><Radio value="sse">SSE</Radio></Radio.Group></Form.Item></Form>;
+  if (step === 1) return <Alert type="success" showIcon message="Mock 连接测试成功" description="端点可访问，initialize 与 tools/list 均正常。" />;
+  if (step === 2) return <Alert type="info" showIcon message="发现 4 个 Tool" />;
+  if (step === 3) return <Checkbox.Group defaultValue={["weather_lookup","forecast_daily"]} options={["weather_lookup","forecast_daily","geocode","admin_delete_cache（高风险，默认排除）"]} />;
+  return <Alert type="info" showIcon message="将导入 2 个远程 MCP Tool" />;
 }
 
 function CreateFlow({ section }: { section: string }) {
