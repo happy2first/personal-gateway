@@ -35,7 +35,7 @@ test("mobile wizard advances visibly without covering test input", async ({ page
     await expect(title).toContainText(expected);
   }
 
-  const testInput = page.getByLabel("测试参数");
+  const testInput = page.getByTestId("test-parameters");
   const actions = page.getByTestId("wizard-actions");
   await actions.scrollIntoViewIfNeeded();
   const [inputBox, actionsBox] = await Promise.all([testInput.boundingBox(), actions.boundingBox()]);
