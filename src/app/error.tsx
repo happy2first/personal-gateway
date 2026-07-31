@@ -1,3 +1,3 @@
 "use client";
-import { ErrorState } from "@/components/Shared";
-export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) { return <div style={{ padding: 24 }}><ErrorState onRetry={reset} /></div>; }
+import { Button, Result } from "antd";
+export default function ErrorPage({reset}:{reset:()=>void}){return <Result status="error" title="页面加载失败" subTitle="请检查网络后重试。" extra={<Button type="primary" onClick={reset}>重新加载</Button>}/>}

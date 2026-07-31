@@ -1,31 +1,22 @@
 # Personal Gateway
 
-个人网关工程化 H5 响应式管理后台原型。使用 Mock 数据演示 Tool/Connection、Publication/Client/Grant、日志/安全事件/告警三大模块。
+个人网关 V2 高保真响应式原型。产品主流程固定为“服务接入 → 端点发布 → AI 调用 → 调用记录”。
 
-## 演示
-
-- 登录：`demo@personal.gateway`，密码任意。
-- 不使用任何真实个人账号、Token、OAuth 或 API Secret。
+全部业务数据、连接测试、Discovery、OAuth 与 API 调用均为 Mock，不连接真实服务，不保存真实凭证。
 
 ## 页面
 
-`/login`、`/dashboard`、`/tools`、`/tools/new-rest`、`/tools/import-openapi`、`/tools/import-mcp`、`/tools/[id]`、`/connections`、`/connections/new`、`/connections/[id]`、`/publications`、`/publications/new`、`/publications/[id]`、`/clients`、`/clients/new`、`/clients/[id]`、`/grants`、`/logs`、`/logs/[id]`、`/security-events`、`/alerts`、`/settings`。
-
-## 本地验证
-
-```bash
-npm ci
-npm run lint
-npm run typecheck
-npm test
-npm run build
-npm run test:e2e
-```
+- /dashboard：网关运行总览、三类调用图表、最近调用
+- /services、/services/new、/services/[id]：服务接入、三类向导与服务详情
+- /endpoints、/endpoints/new、/endpoints/[id]：端点发布、能力权限、多调用方与详情
+- /calls、/calls/[id]：统一调用记录、筛选与调用链
+- /settings：运行、数据、系统状态、身份认证预留、通知
+- /login：Mock 登录
 
 ## 技术栈
 
-Next.js 16 App Router、TypeScript strict、Ant Design 5、Ant Design Next.js Registry、ProComponents、CSS Modules、Zod、Vitest、Playwright。
+Next.js App Router、React、TypeScript strict、Ant Design 5、Ant Design Charts、CSS Modules、Zod、Vitest、Playwright。
 
-## 部署
+## 验证
 
-`work/prototype-v1` 连接 Vercel Preview；验收通过后经 PR 合并 `main` 并部署 Production。GitHub 是代码唯一事实源。
+npm ci；npm run lint；npm run typecheck；npm test；npm run build；npm run test:e2e。

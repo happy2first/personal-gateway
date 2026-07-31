@@ -1,166 +1,106 @@
 "use client";
-
-import { FilterOutlined, KeyOutlined, PlusOutlined, PoweroffOutlined, SendOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Checkbox, Col, Descriptions, Divider, Form, Input, InputNumber, Modal, Progress, Radio, Row, Select, Space, Steps, Switch, Tag, Timeline, Typography, message } from "antd";
+import { ApiOutlined, DeleteOutlined, FilterOutlined, MailOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Collapse, Descriptions, Drawer, Empty, Form, Input, Modal, Radio, Select, Skeleton, Space, Switch, Table, Tabs, Tag, Timeline, message } from "antd";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { DashboardCharts } from "./Charts";
+import { EndpointWizard, ServiceWizard } from "./Wizards";
 import { mockGatewayService } from "@/services/mock/gateway-service";
-import type { AuditLog, GatewayEntity } from "@/services/contracts/gateway";
-import { CodePreview, ConfirmAction, ConnectionHealth, CopyableEndpoint, EmptyState, EntityStatusTag, FilterDrawer, LoadingState, PageHeader, ResponsiveDataView, ResponsiveDrawer, RiskBadge, SecretField, WarningBanner, sharedStyles as styles } from "./Shared";
+import type { Call, Endpoint, Service, Status } from "@/services/contracts/gateway";
+import { calls as allCalls, endpoints as allEndpoints, services as allServices } from "@/mocks/data";
+import styles from "./Gateway.module.css";
 
-const sectionMeta: Record<string, { title: string; subtitle: string; create?: string }> = {
-  tools: { title: "工具", subtitle: "协议中立的 AI 可调用能力，由通用 Executor 执行", create: "/tools/new-rest" },
-  connections: { title: "连接", subtitle: "外部账号或服务实例；上游凭证不会暴露给 AI", create: "/connections/new" },
-  publications: { title: "Publication", subtitle: "将同一组 Tool 动态发布为 MCP 或 OpenAPI", create: "/publications/new" },
-  clients: { title: "AI 客户端", subtitle: "登记调用方、认证方式、状态与调用限额", create: "/clients/new" },
-  grants: { title: "授权关系", subtitle: "默认拒绝，按 Publication、Tool 与 Scope 精细授权" },
-  "security-events": { title: "安全事件", subtitle: "越权、凭证异常、连续失败与总闸变更" },
-  alerts: { title: "告警与通知", subtitle: "固定规则、Resend 配置与脱敏通知测试" },
-};
+const statusMap:Record<Status,{text:string;color:string}>={running:{text:"运行中",color:"success"},error:{text:"异常",color:"error"},untested:{text:"未测试",color:"default"},disabled:{text:"已停用",color:"default"}};
+function StatusTag({value}:{value:Status}){const x=statusMap[value];return <Tag color={x.color}>{x.text}</Tag>}
+function Header({title,subtitle,extra}:{title:string;subtitle:string;extra?:React.ReactNode}){return <div className={styles.pageHeader}><div><h1>{title}</h1><div className={styles.subtitle}>{subtitle}</div></div>{extra}</div>}
+function Loading(){return <Card><Skeleton active paragraph={{rows:6}}/></Card>}
+const sname=(id:string)=>allServices.find(x=>x.id===id)?.name??id;
+const ename=(id:string)=>allEndpoints.find(x=>x.id===id)?.name??id;
+const cname=(sid:string,cid:string)=>allServices.find(x=>x.id===sid)?.capabilities.find(x=>x.id===cid)?.name??cid;
 
-function sectionFrom(path: string) { return path.split("/").filter(Boolean)[0] || "dashboard"; }
-function detailId(path: string) { return path.split("/").filter(Boolean)[1]; }
-
-export function AdminPage({ path }: { path: string }) {
-  const section = sectionFrom(path);
-  if (section === "dashboard") return <Dashboard />;
-  if (section === "logs") return <Logs id={detailId(path)} />;
-  if (section === "settings") return <Settings />;
-  if (["new-rest", "import-openapi", "import-mcp"].includes(detailId(path) ?? "")) return <ToolFlow mode={detailId(path)!} />;
-  if (detailId(path) === "new") return <CreateFlow section={section} />;
-  if (detailId(path)) return <EntityDetail section={section} id={detailId(path)!} />;
-  return <EntityList section={section} />;
+export function AdminPage({path}:{path:string}){
+ const parts=path.split("/").filter(Boolean);const root=parts[0]??"dashboard";const id=parts[1];
+ if(root==="dashboard")return <Dashboard/>;
+ if(root==="services"&&id==="new")return <><Header title="新增服务" subtitle="选择服务类型，并通过向导完成 Mock 配置"/><ServiceWizard/></>;
+ if(root==="services"&&id)return <ServiceDetail id={id}/>;
+ if(root==="services")return <ServiceList/>;
+ if(root==="endpoints"&&id==="new")return <><Header title="新增端点" subtitle="选择服务与能力，并发布为 MCP 或 OpenAPI"/><EndpointWizard/></>;
+ if(root==="endpoints"&&id)return <EndpointDetail id={id}/>;
+ if(root==="endpoints")return <EndpointList/>;
+ if(root==="calls"&&id)return <CallDetail id={id}/>;
+ if(root==="calls")return <CallList/>;
+ if(root==="settings")return <Settings/>;
+ return <Card><Empty description="页面不存在"/></Card>;
 }
 
-function Dashboard() {
-  const metrics = [["工具", "5", "/tools"], ["连接", "6", "/connections"], ["Publication", "2", "/publications"], ["AI 客户端", "3", "/clients"], ["今日调用", "148", "/logs"], ["调用失败", "4", "/logs"], ["安全事件", "3", "/security-events"], ["即将到期", "1", "/connections"]] as const;
-  return <>
-    <PageHeader title="运行概览" subtitle="工具、授权、调用与安全状态的统一视图" extra={<Space><Button icon={<FilterOutlined />}>时间范围</Button><Button type="primary" icon={<PlusOutlined />} href="/tools/new-rest">注册 Tool</Button></Space>} />
-    <WarningBanner>“我的百度网盘”凭证将在 5 天后到期；建议及时更新，避免 Publication 调用失败。</WarningBanner>
-    <div className={styles.grid}>{metrics.map(([label, value, href]) => <Link href={href} key={label}><Card hoverable><div className={styles.metricLabel}>{label}</div><div className={styles.metricValue}>{value}</div></Card></Link>)}</div>
-    <Divider />
-    <Row gutter={[16,16]}>
-      <Col xs={24} lg={15}><Card title="统一执行链"><div className={styles.flow}>{["AI Client", "Grant", "Publication", "Tool", "Connection + Executor"].map((x, i) => <div className={styles.flowStep} key={x}><Tag color={i === 4 ? "purple" : "blue"}>{i + 1}</Tag><div style={{ marginTop: 8, fontWeight: 600 }}>{x}</div></div>)}</div><Alert style={{ marginTop: 16 }} type="info" showIcon message="REST Tool 只配置一次，可同时加入 MCP 和 OpenAPI Publication；系统通过通用 Executor 执行。" /></Card></Col>
-      <Col xs={24} lg={9}><Card title="连接健康"><Space direction="vertical" size={14} style={{ width: "100%" }}><ConnectionHealth status="normal" /><Progress percent={83} status="active" /><Typography.Text type="secondary">5 个健康 · 1 个需关注</Typography.Text><Button href="/connections" block>查看全部连接</Button></Space></Card></Col>
-      <Col xs={24} lg={15}><Card title="最近调用"><Timeline items={[{ color: "green", children: "17:38 ChatGPT MCP · 搜索邮件 · 成功" }, { color: "orange", children: "17:31 私人 GPT · 搜索网盘 · 上游失败" }, { color: "red", children: "17:22 私人 GPT · 未授权 Tool · 已拒绝" }]} /><Button href="/logs">查看调用日志</Button></Card></Col>
-      <Col xs={24} lg={9}><Card title="紧急控制" extra={<Tag color="success">调用已启用</Tag>}><p>总闸会立即阻断所有 AI 调用，但不影响管理后台。</p><ConfirmAction title="确认触发全局紧急停止？此操作会中断所有 Publication。" onConfirm={() => window.alert("模拟：全局 Kill Switch 已触发")}>触发紧急停止</ConfirmAction></Card></Col>
-    </Row>
-  </>;
+function Dashboard(){
+ return <><Header title="个人网关" subtitle="将个人数字服务统一发布为标准、安全、可授权的 AI 能力端点" extra={<StatusTag value="running"/>}/>
+  <div className={styles.metrics}>{[["已接入服务","5"],["已发布端点","3"],["今日 AI 调用","148"],["今日失败","4"]].map(([x,v])=><div className={styles.metric} key={x}><span className={styles.muted}>{x}</span><strong>{v}</strong></div>)}</div>
+  <DashboardCharts/><RecentCalls limit={5}/>
+ </>;
 }
 
-function EntityList({ section }: { section: string }) {
-  const meta = sectionMeta[section] ?? { title: section, subtitle: "管理列表" };
-  const [items, setItems] = useState<GatewayEntity[] | null>(null);
-  const [selected, setSelected] = useState<GatewayEntity>();
-  const [filterOpen, setFilterOpen] = useState(false);
-  useEffect(() => { void mockGatewayService.list(section).then(setItems); }, [section]);
-  const extras = <Space wrap>{section === "tools" ? <><Button href="/tools/import-openapi">导入 OpenAPI</Button><Button href="/tools/import-mcp">注册远程 MCP</Button></> : null}<Button icon={<FilterOutlined />} onClick={() => setFilterOpen(true)}>筛选</Button>{meta.create ? <Button type="primary" icon={<PlusOutlined />} href={meta.create}>新建</Button> : null}</Space>;
-  return <>
-    <PageHeader title={meta.title} subtitle={meta.subtitle} extra={extras} />
-    {section === "alerts" ? <ResendPanel /> : null}
-    {items === null ? <LoadingState /> : items.length ? <ResponsiveDataView items={items} onOpen={setSelected} /> : <EmptyState text={`暂无${meta.title}`} />}
-    <ResponsiveDrawer open={Boolean(selected)} onClose={() => setSelected(undefined)} title={selected?.name ?? "详情"}>{selected ? <><Descriptions column={1} bordered size="small" items={[{ key: "type", label: "类型", children: selected.kind }, { key: "status", label: "状态", children: <EntityStatusTag status={selected.status} /> }, { key: "risk", label: "风险", children: <RiskBadge risk={selected.risk} /> }, { key: "desc", label: "说明", children: selected.description }, { key: "meta", label: "配置摘要", children: selected.meta }]} /><Divider /><Button type="primary" href={`/${section}/${selected.id}`}>打开完整详情</Button></> : null}</ResponsiveDrawer>
-    <FilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)} title={`${meta.title}筛选`}><Form layout="vertical"><Form.Item label="状态"><Select mode="multiple" options={["正常","需关注","异常","草稿","已停用"].map((x) => ({ value: x, label: x }))} /></Form.Item><Form.Item label="类型"><Select options={["REST","IMAP","Remote MCP","OpenAPI","MCP"].map((x) => ({ value: x, label: x }))} /></Form.Item><Button type="primary" block onClick={() => setFilterOpen(false)}>应用筛选</Button></Form></FilterDrawer>
-  </>;
+function ServiceList(){
+ const [data,setData]=useState<Service[]|null>(null);useEffect(()=>{void mockGatewayService.services().then(setData)},[]);
+ return <><Header title="全部服务" subtitle="接入并管理个人数字服务，能力在服务详情中统一维护" extra={<Button type="primary" icon={<PlusOutlined/>} href="/services/new">新增服务</Button>}/>
+  {!data?<Loading/>:data.length?<><div className={styles.cards}>{data.map(s=><Link key={s.id} href={"/services/"+s.id}><Card hoverable className={styles.entity}><div className={styles.entityTop}><div><h3>{s.name}</h3><div className={styles.muted}>{s.description}</div></div><StatusTag value={s.status}/></div><div className={styles.entityMeta}><Tag>{s.type}</Tag><Tag>{s.category}</Tag><span>{s.capabilities.length} 项能力</span><span>{s.transport}</span></div></Card></Link>)}</div></>:<Card className={styles.empty}><Empty description="暂无服务" image={Empty.PRESENTED_IMAGE_SIMPLE}/><Button type="primary" href="/services/new">新增服务</Button></Card>}
+ </>;
 }
 
-function EntityDetail({ section, id }: { section: string; id: string }) {
-  const [item, setItem] = useState<GatewayEntity>();
-  const [keyOpen, setKeyOpen] = useState(false);
-  useEffect(() => { void mockGatewayService.get(section, id).then(setItem); }, [section, id]);
-  if (!item) return <LoadingState />;
-  return <>
-    <PageHeader title={item.name} subtitle={item.description} extra={<Space><Button>编辑</Button><Button type="primary" onClick={() => setKeyOpen(true)} icon={<KeyOutlined />}>{section === "clients" ? "创建 API Key" : "测试"}</Button></Space>} />
-    {item.status === "warning" ? <WarningBanner>{item.meta}</WarningBanner> : null}
-    <div className={styles.detailGrid}>
-      <Card title="基本信息"><Descriptions column={{ xs: 1, sm: 2 }} bordered items={[{ key: "id", label: "稳定 ID", children: item.id }, { key: "kind", label: "类型", children: item.kind }, { key: "status", label: "状态", children: <EntityStatusTag status={item.status} /> }, { key: "risk", label: "风险", children: <RiskBadge risk={item.risk} /> }, { key: "meta", label: "配置摘要", children: item.meta, span: 2 }, { key: "updated", label: "更新时间", children: item.updatedAt }]} /></Card>
-      <Card title="实时控制"><Space direction="vertical" style={{ width: "100%" }}><Switch defaultChecked checkedChildren="已启用" unCheckedChildren="已停用" /><Button block>查看关联日志</Button><ConfirmAction title={`确认停用 ${item.name}？`} onConfirm={() => window.alert("模拟：对象已停用")}>停用对象</ConfirmAction></Space></Card>
-      <Card title="执行与发布关系"><div className={styles.flow}>{["AI Client", "Grant", "Publication", "Tool", "Connection + Executor"].map((x, i) => <div className={styles.flowStep} key={x}><Tag>{i + 1}</Tag> {x}</div>)}</div></Card>
-      <Card title="安全配置"><SecretField /><Divider /><CopyableEndpoint value={section === "publications" ? `https://gateway.example/api/${item.kind.toLowerCase()}/${item.id}` : `entity://${section}/${item.id}`} /></Card>
-    </div>
-    <Modal open={keyOpen} onCancel={() => setKeyOpen(false)} onOk={() => setKeyOpen(false)} title={section === "clients" ? "API Key 已创建（仅显示一次）" : "Mock 测试成功"} okText="我已保存"><Alert type="success" showIcon message={section === "clients" ? "pg_live_A9f3K2x7M8q1Z5r4" : "连接与 Schema 校验通过"} /><p>关闭后系统只保留哈希与前缀，无法再次查看完整值。</p></Modal>
-  </>;
+function ServiceDetail({id}:{id:string}){
+ const [item,setItem]=useState<Service>();useEffect(()=>{void mockGatewayService.service(id).then(setItem)},[id]);if(!item)return <Loading/>;
+ const capability=<Space direction="vertical" style={{width:"100%"}}>{item.capabilities.map(c=><Card size="small" key={c.id}><div className={styles.capRow}><span><strong>{c.name}</strong><br/><small className={styles.muted}>{c.id} · {c.description}</small></span><Tag>{c.risk==="read"?"只读":c.risk==="delete"?"高危":"写入"}</Tag></div></Card>)}</Space>;
+ const overview=<div className={styles.detailGrid}><Card title="基本信息"><Descriptions column={{xs:1,sm:2}} items={[{key:"code",label:"服务标识",children:item.code},{key:"type",label:"类型",children:item.type},{key:"category",label:"分类",children:item.category},{key:"status",label:"状态",children:<StatusTag value={item.status}/>},{key:"transport",label:"连接方式",children:item.transport},{key:"updated",label:"更新时间",children:item.updatedAt}]}/></Card><Card title="运行控制"><Space direction="vertical" style={{width:"100%"}}><Switch defaultChecked checkedChildren="已启用" unCheckedChildren="已停用"/><Button block href={"/calls?service="+item.id}>查看调用记录</Button><Button danger block onClick={()=>Modal.confirm({title:"确认停用该服务？",content:"停用后关联端点将无法调用此服务。",okText:"确认停用",okButtonProps:{danger:true}})}>停用服务</Button></Space></Card></div>;
+ return <><Header title={item.name} subtitle={item.description} extra={<Space><StatusTag value={item.status}/><Button>编辑</Button></Space>}/><Card><Tabs tabBarGutter={24} items={[
+  {key:"overview",label:"概览",children:overview},{key:"capabilities",label:"原始能力",children:capability},
+  {key:"connection",label:"连接与认证",children:<><Alert type="info" showIcon message="这里只管理上游连接与认证" description="界面仅展示认证方式与状态，不显示任何 Secret；对外认证在端点发布中配置。"/><Descriptions style={{marginTop:16}} column={1} bordered items={[{key:"transport",label:"上游连接方式",children:item.transport},{key:"auth",label:"上游认证",children:"已配置（已脱敏）"},{key:"tls",label:"TLS",children:"已启用"}]}/></>},
+  {key:"test",label:"测试",children:<Space direction="vertical" style={{width:"100%"}}><Alert type="success" showIcon message="最近一次 Mock 测试成功"/><Timeline items={[{color:"green",children:"18:32 连接测试成功"},{color:"blue",children:"18:31 发现并保存原始能力 Schema 快照"},{color:"gray",children:"昨天 21:08 上游认证校验成功"}]}/><Button type="primary" icon={<ReloadOutlined/>} onClick={()=>message.success("连接及原始能力测试成功")}>重新测试</Button></Space>},
+  {key:"linked",label:"关联端点",children:<div className={styles.cards}>{allEndpoints.filter(e=>e.serviceIds.includes(item.id)).map(e=><Link key={e.id} href={"/endpoints/"+e.id}><Card hoverable><div className={styles.entityTop}><strong>{e.name}</strong><StatusTag value={e.status}/></div><div className={styles.entityMeta}><Tag>{e.protocol}</Tag><span>{item.capabilities.length} 项能力</span></div></Card></Link>)}</div>},
+  {key:"calls",label:"调用记录",children:<RecentCalls serviceId={item.id} limit={5}/>}
+ ]}/></Card></>;
 }
 
-function ToolFlow({ mode }: { mode: string }) {
-  const meta = mode === "new-rest" ? ["新增 REST Tool", "基本信息", "Connection", "参数映射", "Schema", "风险", "测试", "保存"] : mode === "import-openapi" ? ["导入 OpenAPI", "文档", "模拟解析", "选择 Operation", "批量调整", "导入 Tool"] : ["注册远程 MCP", "地址与认证", "连接测试", "发现 Tool", "选择导入", "完成"];
-  const [current, setCurrent] = useState(0);
-  const [done, setDone] = useState(false);
-  const [interactive, setInteractive] = useState(false);
-  const steps = meta.slice(1);
-
-  useEffect(() => {
-    const readyTimer = window.setTimeout(() => setInteractive(true), 0);
-    return () => window.clearTimeout(readyTimer);
-  }, []);
-
-  const moveTo = (next: number) => {
-    setCurrent(next);
-    window.requestAnimationFrame(() => document.querySelector("[data-testid='wizard-card']")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  };
-
-  return <>
-    <PageHeader title={meta[0]} subtitle="Mock 流程不会连接真实账号或保存真实密钥" />
-    <div className={styles.wizard} data-testid="wizard-card">
-      <Card><Steps current={current} responsive size="small" items={steps.map((title) => ({ title }))} /><Divider />
-        {done ? <Alert type="success" showIcon message="流程已完成，已生成 Tool 草稿" description="原型中数据不会持久化；正式版将通过 Mock Service 契约替换为真实 API。" /> : <>
-          <Typography.Title level={5} className={styles.stepTitle} data-testid="wizard-step-title">当前步骤：{steps[current]}</Typography.Title>
-          <FlowStep mode={mode} step={current} />
-        </>}
-        <div className={styles.stickyActions} data-testid="wizard-actions">
-          <Button disabled={!interactive || current === 0 || done} onClick={() => moveTo(current - 1)}>上一步</Button>
-          <Button type="primary" disabled={!interactive || done} onClick={() => current === steps.length - 1 ? setDone(true) : moveTo(current + 1)}>{current === steps.length - 1 ? "保存" : "下一步"}</Button>
-        </div>
-      </Card>
-    </div>
-  </>;
+function EndpointList(){
+ const [data,setData]=useState<Endpoint[]|null>(null);useEffect(()=>{void mockGatewayService.endpoints().then(setData)},[]);
+ return <><Header title="端点发布" subtitle="把一个或多个服务的能力，对外发布为标准端点" extra={<Button type="primary" icon={<PlusOutlined/>} href="/endpoints/new">新增端点</Button>}/>{!data?<Loading/>:<div className={styles.cards}>{data.map(e=><Link href={"/endpoints/"+e.id} key={e.id}><Card hoverable className={styles.entity}><div className={styles.entityTop}><div><h3>{e.name}</h3><div className={styles.muted}>{e.description}</div></div><StatusTag value={e.status}/></div><div className={styles.entityMeta}><Tag color="blue">{e.protocol}</Tag><span>{e.serviceIds.length} 个服务</span><span>{e.callers.length} 个调用方</span><span>{e.calls} 次 · {e.successRate}%</span></div></Card></Link>)}</div>}</>;
 }
 
-function FlowStep({ mode, step }: { mode: string; step: number }) {
-  if (mode === "new-rest") {
-    if (step === 0) return <Form layout="vertical" className={styles.formGrid}><Form.Item label="Tool 显示名称" required><Input defaultValue="查询公共行情" /></Form.Item><Form.Item label="稳定唯一名称" required><Input defaultValue="market_ticker" /></Form.Item></Form>;
-    if (step === 1) return <Form layout="vertical"><Form.Item label="Connection"><Select defaultValue="binance" options={[{ value: "binance", label: "币安公共行情 REST" }, { value: "baidu", label: "我的百度网盘" }]} /></Form.Item><Alert type="info" showIcon message="凭证由 Connection 管理，不会写入 Tool 或暴露给 AI 客户端。" /></Form>;
-    if (step === 2) return <Form layout="vertical" className={styles.formGrid}><Form.Item label="HTTP 方法"><Select defaultValue="GET" options={["GET","POST","PUT"].map((x) => ({ value: x, label: x }))} /></Form.Item><Form.Item label="路径模板"><Input defaultValue="/api/v3/ticker/price" /></Form.Item><Form.Item label="参数映射" className={styles.full}><Input.TextArea rows={4} defaultValue={'{"symbol":"query.symbol"}'} /></Form.Item></Form>;
-    if (step === 3) return <Form layout="vertical"><Form.Item label="输入 Schema"><Input.TextArea rows={7} defaultValue={'{"type":"object","properties":{"symbol":{"type":"string"}},"required":["symbol"]}'} /></Form.Item></Form>;
-    if (step === 4) return <Form layout="vertical"><Form.Item label="只读与风险"><Space wrap><Switch defaultChecked /> 只读 <RiskBadge risk="low" /></Space></Form.Item><Alert type="success" showIcon message="该 Tool 仅执行公开行情查询，判定为低风险。" /></Form>;
-    if (step === 5) return <Form layout="vertical"><Form.Item label="测试参数"><Input.TextArea data-testid="test-parameters" autoSize={{ minRows: 3, maxRows: 6 }} defaultValue='{"symbol":"BTCUSDT"}' /></Form.Item><Alert type="success" showIcon message="Mock 测试通过：HTTP 200，Schema 校验成功。" /></Form>;
-    return <Alert type="info" showIcon message="配置检查完成" description="保存后将生成 REST Tool 草稿，可加入 MCP 或 OpenAPI Publication。" />;
-  }
-  if (mode === "import-openapi") {
-    if (step === 0) return <Form layout="vertical"><Form.Item label="OpenAPI URL 或文档"><Input defaultValue="https://example.test/openapi.json" /></Form.Item></Form>;
-    if (step === 1) return <Alert type="warning" showIcon message="已模拟解析 8 个 Operation" description="默认排除 deleteFile、sendMail、createOrder 三个高风险接口。" />;
-    if (step === 2) return <Checkbox.Group defaultValue={["searchFiles","getFileMeta","listFolders"]} options={["searchFiles","getFileMeta","listFolders","deleteFile（高风险，默认排除）","sendMail（V1 禁止）"]} />;
-    if (step === 3) return <Form layout="vertical"><Form.Item label="批量风险级别"><Select defaultValue="low" options={[{ value: "low", label: "低风险 / 只读" }, { value: "medium", label: "中风险" }]} /></Form.Item></Form>;
-    return <Alert type="info" showIcon message="将导入 3 个只读 Tool" />;
-  }
-  if (step === 0) return <Form layout="vertical"><Form.Item label="远程 MCP URL"><Input defaultValue="https://mcp.example.test/mcp" /></Form.Item><Form.Item label="传输方式"><Radio.Group defaultValue="http"><Radio value="http">Streamable HTTP</Radio><Radio value="sse">SSE</Radio></Radio.Group></Form.Item></Form>;
-  if (step === 1) return <Alert type="success" showIcon message="Mock 连接测试成功" description="端点可访问，initialize 与 tools/list 均正常。" />;
-  if (step === 2) return <Alert type="info" showIcon message="发现 4 个 Tool" />;
-  if (step === 3) return <Checkbox.Group defaultValue={["weather_lookup","forecast_daily"]} options={["weather_lookup","forecast_daily","geocode","admin_delete_cache（高风险，默认排除）"]} />;
-  return <Alert type="info" showIcon message="将导入 2 个远程 MCP Tool" />;
+function EndpointDetail({id}:{id:string}){
+ const [item,setItem]=useState<Endpoint>();useEffect(()=>{void mockGatewayService.endpoint(id).then(setItem)},[id]);if(!item)return <Loading/>;
+ const overview=<div className={styles.detailGrid}><Card title="端点信息"><Descriptions column={1} bordered items={[{key:"protocol",label:"协议",children:item.protocol},{key:"status",label:"状态",children:<StatusTag value={item.status}/>},{key:"url",label:"Endpoint URL",children:<Input readOnly value={item.url} addonAfter={<Button type="link" onClick={()=>message.success("已复制")}>复制</Button>}/>} ,{key:"rate",label:"成功率",children:item.successRate+"%"},{key:"calls",label:"今日调用",children:item.calls+" 次"}]}/></Card><Card title="运行控制"><Space direction="vertical" style={{width:"100%"}}><Switch defaultChecked checkedChildren="运行中" unCheckedChildren="已停用"/><Button href={"/calls?endpoint="+item.id} block>查看调用记录</Button><Button danger block onClick={()=>Modal.confirm({title:"确认停用端点？",content:"所有调用方将立即无法调用。",okText:"停用",okButtonProps:{danger:true}})}>停用端点</Button></Space></Card></div>;
+ const conversionTab=<Space direction="vertical" style={{width:"100%"}}>{item.serviceIds.map(id=>{const s=allServices.find(x=>x.id===id)!;return <Collapse key={id} items={[{key:id,label:<Space><strong>{s.name}</strong><Tag color="blue">{s.type+" → "+item.protocol}</Tag></Space>,children:<Descriptions column={1} bordered items={s.capabilities.slice(0,3).map(c=>({key:c.id,label:c.name,children:<Space direction="vertical"><span>原始能力：<code>{c.id}</code></span><span>对外能力：<code>{item.protocol==="MCP"?c.id.replace(/-/g,"_"):"/"+c.id.replace(/-/g,"/")}</code></span><span>对外 Schema：已生成</span><StatusTag value="running"/></Space>}))}/> }]} />})}</Space>;
+ const permissionTab=<PermissionSummary serviceIds={item.serviceIds}/>;
+ const callerTab=<div className={styles.cards}>{item.callers.map(c=><Card key={c.id}><div className={styles.entityTop}><strong>{c.name}</strong><StatusTag value={c.status}/></div><p className={styles.muted}>{c.vendor} · {c.auth}</p><Space><Button>独立授权</Button><Button>查看日志</Button></Space></Card>)}</div>;
+ return <><Header title={item.name} subtitle={item.description} extra={<Space><StatusTag value={item.status}/><Button>编辑</Button></Space>}/><Card><Tabs items={[{key:"overview",label:"概览",children:overview},{key:"conversion",label:"能力与转换",children:conversionTab},{key:"permission",label:"权限",children:permissionTab},{key:"auth",label:"认证",children:<Alert type="info" showIcon message={item.protocol==="MCP"?"下游 OAuth 2.1 已配置；Token 不在界面展示":"下游 API Key 已配置；仅显示前缀 pg_live_••••"}/>},{key:"callers",label:"调用方",children:callerTab},{key:"test",label:"测试",children:<><Alert type="success" showIcon message="端点协议、转换、权限和调用方 Mock 测试通过"/><Button style={{marginTop:16}}>重新测试</Button></>},{key:"calls",label:"调用记录",children:<RecentCalls endpointId={item.id} limit={5}/>} ]}/></Card></>;
 }
 
-function CreateFlow({ section }: { section: string }) {
-  const labels: Record<string, string> = { connections: "新增连接", publications: "创建 Publication", clients: "注册 AI Client" };
-  const [saved, setSaved] = useState(false);
-  return <><PageHeader title={labels[section] ?? "新建"} subtitle="配置驱动的 Mock 创建流程" /><Card>{saved ? <Alert type="success" showIcon message="已保存 Mock 配置" /> : <Form layout="vertical" className={styles.formGrid} onFinish={() => setSaved(true)}><Form.Item label="名称" required><Input placeholder="输入名称" /></Form.Item><Form.Item label="类型"><Select defaultValue={section === "publications" ? "MCP" : section === "clients" ? "ChatGPT MCP" : "REST"} options={["MCP","OpenAPI","REST","IMAP","Remote MCP","ChatGPT MCP","GPT Action"].map((x) => ({ value: x, label: x }))} /></Form.Item>{section === "publications" ? <><Form.Item label="选择 Tool" className={styles.full}><Select mode="multiple" defaultValue={["mail_search_messages","files_search"]} options={["mail_search_messages","files_search","notes_search","market_ticker"].map((x) => ({ value: x, label: x }))} /></Form.Item><Form.Item label="Scope"><Select mode="tags" defaultValue={["mail.read","files.read"]} /></Form.Item><Form.Item label="每分钟限流"><InputNumber min={1} defaultValue={30} style={{ width: "100%" }} /></Form.Item></> : null}<Form.Item label="认证方式"><Select defaultValue="oauth" options={[{ value: "oauth", label: "OAuth 2.1" }, { value: "key", label: "Bearer API Key" }]} /></Form.Item><Form.Item label="状态"><Switch defaultChecked checkedChildren="启用" unCheckedChildren="停用" /></Form.Item><Form.Item className={styles.full}><Button htmlType="submit" type="primary">保存并启用</Button></Form.Item></Form>}</Card></>;
+function PermissionSummary({serviceIds}:{serviceIds:string[]}){return <Space direction="vertical" style={{width:"100%"}}>{serviceIds.map(id=>{const s=allServices.find(x=>x.id===id)!;return <Collapse key={id} items={[{key:id,label:<strong>{s.name}</strong>,children:s.capabilities.map(c=><div className={styles.envRow} key={c.id}><span>{c.name}</span><Tag color={c.permission==="allow"?"success":c.permission==="deny"?"error":"warning"}>{c.permission==="allow"?"允许":c.permission==="deny"?"禁止":"每次确认"}</Tag></div>)}]}/>})}</Space>}
+
+function RecentCalls({limit=5,serviceId,endpointId}:{limit?:number;serviceId?:string;endpointId?:string}){
+ const data=allCalls.filter(x=>(!serviceId||x.serviceId===serviceId)&&(!endpointId||x.endpointId===endpointId)).slice(0,limit);
+ return <Card title="最近调用" extra={<Button type="link" href="/calls">查看全部</Button>}><CallViews data={data}/></Card>
+}
+function CallViews({data}:{data:Call[]}){
+ const columns=[{title:"时间",dataIndex:"time",render:(v:string)=>v.slice(11)},{title:"Vendor / Client",key:"client",render:(_:unknown,r:Call)=>r.vendor+" / "+r.client},{title:"Endpoint",key:"endpoint",render:(_:unknown,r:Call)=><>{ename(r.endpointId)}<br/><small>{r.endpointProtocol}</small></>},{title:"Service",key:"service",render:(_:unknown,r:Call)=><>{sname(r.serviceId)}<br/><small>{r.serviceType}</small></>},{title:"Capability",key:"cap",render:(_:unknown,r:Call)=><>{r.externalCapability}<br/><small>{cname(r.serviceId,r.capabilityId)}</small></>},{title:"Conversion",dataIndex:"conversionType"},{title:"Result",dataIndex:"result",render:(v:string)=><Tag color={v==="success"?"success":"error"}>{v==="success"?"成功":"失败"}</Tag>},{title:"Duration",dataIndex:"duration",render:(v:number)=>v+" ms"},{title:"RequestID",dataIndex:"id",render:(v:string)=><Link href={"/calls/"+v}>{v}</Link>}];
+ return <>{data.length?<><div className={styles.desktopTable}><Table rowKey="id" size="small" pagination={false} dataSource={data} columns={columns}/></div><div className={styles.mobileCards}>{data.map(x=><Link href={"/calls/"+x.id} key={x.id}><Card size="small"><div className={styles.entityTop}><strong>{cname(x.serviceId,x.capabilityId)}</strong><Tag color={x.result==="success"?"success":"error"}>{x.result==="success"?"成功":"失败"}</Tag></div><div className={styles.entityMeta}><span>{x.time.slice(11)}</span><span>{x.client}</span><span>{sname(x.serviceId)}</span><span>{x.duration} ms</span></div></Card></Link>)}</div></>:<Empty description="暂无调用记录"/>}</>
 }
 
-function Logs({ id }: { id?: string }) {
-  const [logs, setLogs] = useState<AuditLog[] | null>(null); const [filterOpen, setFilterOpen] = useState(false);
-  useEffect(() => { void mockGatewayService.logs().then(setLogs); }, []);
-  const selected = useMemo(() => logs?.find((x) => x.id === id), [logs, id]);
-  if (id && selected) return <><PageHeader title={`调用详情 ${selected.id}`} subtitle={`${selected.client} → ${selected.tool}`} /><Card><Descriptions bordered column={{ xs: 1, sm: 2 }} items={[{ key: "client", label: "AI Client", children: selected.client }, { key: "tool", label: "Tool", children: selected.tool }, { key: "connection", label: "Connection", children: selected.connection }, { key: "risk", label: "风险", children: <RiskBadge risk={selected.risk} /> }, { key: "duration", label: "耗时", children: `${selected.duration} ms` }, { key: "result", label: "结果", children: selected.result }]} /><Divider /><CodePreview value={JSON.stringify({ request_id: selected.id, input: "[REDACTED]", credential: "[NEVER LOGGED]", result: selected.description }, null, 2)} /></Card></>;
-  const entities = logs?.map((log) => ({ ...log, meta: `${log.client} · ${log.tool} · ${log.duration}ms` })) ?? [];
-  return <><PageHeader title="调用日志" subtitle="只记录脱敏元数据，不记录正文、Token、Cookie 或完整路径" extra={<Button icon={<FilterOutlined />} onClick={() => setFilterOpen(true)}>筛选日志</Button>} />{logs === null ? <LoadingState /> : <ResponsiveDataView items={entities} onOpen={(item) => { window.location.href = `/logs/${item.id}`; }} />}<FilterDrawer open={filterOpen} onClose={() => setFilterOpen(false)} title="日志筛选"><Form layout="vertical"><Form.Item label="AI Client"><Select options={["ChatGPT MCP","私人 GPT Action","MCP Inspector"].map((x) => ({ value: x, label: x }))} /></Form.Item><Form.Item label="Tool / Connection"><Input placeholder="搜索 Tool 或 Connection" /></Form.Item><Form.Item label="风险"><Checkbox.Group options={["低风险","中风险","高风险"]} /></Form.Item><Button block type="primary" onClick={() => setFilterOpen(false)}>应用筛选</Button></Form></FilterDrawer></>;
+function CallList(){
+ const [data,setData]=useState<Call[]|null>(null);const [drawer,setDrawer]=useState(false);const [filters,setFilters]=useState({vendor:"",endpoint:"",service:"",result:"",keyword:""});
+ useEffect(()=>{const q=new URLSearchParams(window.location.search);queueMicrotask(()=>setFilters(f=>({...f,endpoint:q.get("endpoint")??"",service:q.get("service")??"",result:q.get("result")??""})));void mockGatewayService.calls().then(setData)},[]);
+ const shown=useMemo(()=>data?.filter(x=>(!filters.vendor||x.vendor===filters.vendor)&&(!filters.endpoint||x.endpointId===filters.endpoint)&&(!filters.service||x.serviceId===filters.service)&&(!filters.result||x.result===filters.result)&&(!filters.keyword||(x.id+x.client+x.message).toLowerCase().includes(filters.keyword.toLowerCase())))??[],[data,filters]);
+ const form=<Form layout="vertical"><Form.Item label="时间"><Select defaultValue="today" options={[{label:"今天",value:"today"},{label:"最近 7 天",value:"7d"},{label:"最近 30 天",value:"30d"}]}/></Form.Item><Form.Item label="Vendor"><Select allowClear value={filters.vendor||undefined} onChange={v=>setFilters(f=>({...f,vendor:v??""}))} options={["OpenAI","Anthropic","Google"].map(x=>({label:x,value:x}))}/></Form.Item><Form.Item label="Endpoint"><Select allowClear value={filters.endpoint||undefined} onChange={v=>setFilters(f=>({...f,endpoint:v??""}))} options={allEndpoints.map(x=>({label:x.name,value:x.id}))}/></Form.Item><Form.Item label="Service"><Select allowClear value={filters.service||undefined} onChange={v=>setFilters(f=>({...f,service:v??""}))} options={allServices.map(x=>({label:x.name,value:x.id}))}/></Form.Item><Form.Item label="成功失败"><Select allowClear value={filters.result||undefined} onChange={v=>setFilters(f=>({...f,result:v??""}))} options={[{label:"成功",value:"success"},{label:"失败",value:"failed"}]}/></Form.Item><Form.Item label="关键词"><Input.Search value={filters.keyword} onChange={e=>setFilters(f=>({...f,keyword:e.target.value}))}/></Form.Item></Form>;
+ return <><Header title="调用记录" subtitle="统一记录 Client → Endpoint → Service → Capability → Result" extra={<Button icon={<FilterOutlined/>} onClick={()=>setDrawer(true)}>筛选</Button>}/><Card><div className={styles.desktopTable}>{form}</div>{!data?<Skeleton active/>:<CallViews data={shown}/>}</Card><Drawer open={drawer} title="筛选调用记录" placement="bottom" height="90%" onClose={()=>setDrawer(false)}><>{form}<Button type="primary" block onClick={()=>setDrawer(false)}>应用筛选</Button></></Drawer></>;
 }
+function CallDetail({id}:{id:string}){const x=allCalls.find(x=>x.id===id);if(!x)return <Card><Empty description="调用记录不存在"/></Card>;const chain=[["调用方",x.client],["端点",ename(x.endpointId)],["对外能力",x.externalCapability],["来源服务",sname(x.serviceId)],["原始能力",cname(x.serviceId,x.capabilityId)],["上游结果",x.result==="success"?"成功":"失败"]];return <><Header title="调用详情" subtitle={x.id} extra={<Tag color={x.result==="success"?"success":"error"}>{x.result==="success"?"成功":"失败"}</Tag>}/><div className={styles.detailGrid}><Card title="完整调用链" className={styles.full}><div className={styles.flow}>{chain.map(([a,v])=><span key={a} className={styles.flowNode}>{a}<br/><strong>{v}</strong></span>)}</div></Card><Card title="请求信息"><Descriptions column={1} items={[{key:"time",label:"时间",children:x.time},{key:"vendor",label:"Vendor",children:x.vendor},{key:"endpointProtocol",label:"Endpoint Protocol",children:x.endpointProtocol},{key:"serviceType",label:"Service Type",children:x.serviceType},{key:"conversion",label:"Conversion Type",children:x.conversionType},{key:"duration",label:"Duration",children:x.duration+" ms"},{key:"id",label:"Request ID",children:x.id}]}/></Card><Card title="上游结果"><Alert type={x.result==="success"?"success":"error"} showIcon message={x.message} description={"上游错误摘要："+x.upstreamError}/></Card></div></>}
 
-function ResendPanel() {
-  const [api, holder] = message.useMessage();
-  return <>{holder}<Card style={{ marginBottom: 16 }} title="Resend 通知配置" extra={<Tag color="success">域名已验证（Mock）</Tag>}><Row gutter={[16,16]} align="middle"><Col xs={24} md={15}><Descriptions size="small" column={1} items={[{ key: "domain", label: "发件域名", children: "pgnotify.happyfirst.top" }, { key: "key", label: "API Key", children: <SecretField prefix="re_82a1" /> }]} /></Col><Col xs={24} md={9}><Space wrap><Button icon={<SendOutlined />} onClick={() => api.success("测试邮件发送成功（Mock）")}>模拟成功</Button><Button danger onClick={() => api.error("测试发送失败：域名未验证（Mock）")}>模拟失败</Button></Space></Col></Row></Card></>;
-}
-
-function Settings() {
-  const [oauth, setOauth] = useState(true); const [kill, setKill] = useState(false);
-  return <><PageHeader title="系统设置" subtitle="安全、认证、通知与紧急控制" /><Row gutter={[16,16]}><Col xs={24} lg={12}><Card title="OAuth 连接状态" extra={<Tag color={oauth ? "success" : "default"}>{oauth ? "已连接" : "已撤销"}</Tag>}><p>ChatGPT MCP · Authorization Code + PKCE</p><p>Scope：mail.read notes.read files.read</p><Button danger disabled={!oauth} onClick={() => { if (window.confirm("确认撤销 OAuth Grant？客户端将立即失去访问权限。")) setOauth(false); }}>模拟撤销授权</Button></Card></Col><Col xs={24} lg={12}><Card title="全局 Kill Switch" extra={<PoweroffOutlined style={{ color: kill ? "var(--pg-error)" : "var(--pg-success)" }} />}><Alert type={kill ? "error" : "success"} showIcon message={kill ? "所有 AI 调用已停止" : "所有 AI 调用已启用"} /><Divider /><Switch checked={kill} onChange={(next) => { if (!next || window.confirm("二次确认：立即停止所有 MCP 与 Action 调用？")) setKill(next); }} checkedChildren="已停止" unCheckedChildren="运行中" /></Card></Col><Col xs={24}><Card title="安全默认值"><Descriptions column={{ xs: 1, md: 2 }} items={[{ key: "readonly", label: "V1 Tool", children: "默认只读" }, { key: "cipher", label: "凭证加密", children: "AES-256-GCM" }, { key: "audit", label: "审计保留", children: "调用 90 天 / 安全事件 180 天" }, { key: "ssrf", label: "外部请求", children: "域名白名单 + 超时 + 响应上限" }]} /></Card></Col></Row></>;
+function Settings(){
+ const confirmClear=()=>Modal.confirm({title:"确认清空调用记录？",content:"此操作不可撤销。当前为 Mock，不会删除真实数据。",okText:"清空",okButtonProps:{danger:true}});
+ return <><Header title="设置" subtitle="运行控制、数据、系统状态、身份认证与通知"/><div className={styles.settingsStack}>
+  <Card title="运行控制"><Space wrap><Tag color="success">运行中</Tag><Button onClick={()=>Modal.confirm({title:"确认暂停网关？",content:"暂停后所有 AI 调用将被阻断。",okText:"确认暂停"})}>暂停</Button><Button type="primary" disabled>恢复</Button></Space></Card>
+  <Card title="数据"><Form layout="inline"><Form.Item label="调用记录保留"><Radio.Group defaultValue={90} options={[30,90,180].map(x=>({label:x+" 天",value:x}))}/></Form.Item><Button danger icon={<DeleteOutlined/>} onClick={confirmClear}>清空记录</Button></Form></Card>
+  <Card title="系统状态"><Descriptions column={{xs:1,sm:2}} bordered items={[["Supabase","正常"],["Upstash","正常"],["Resend","正常"],["Vercel","正常"],["版本号","v0.2.0-prototype"],["部署时间","2026-08-01 20:10"]].map(([a,b])=>({key:a,label:a,children:<Space>{b==="正常"?<StatusTag value="running"/>:b}</Space>}))}/><Collapse style={{marginTop:16}} items={[{key:"env",label:"环境变量（仅显示变量名与状态）",children:<>{["NEXT_PUBLIC_APP_ENV","SUPABASE_URL","UPSTASH_URL","RESEND_FROM"].map(x=><div className={styles.envRow} key={x}><code>{x}</code><Tag color="success">已配置</Tag></div>)}</>}]} /></Card>
+  <Card title="身份认证（预留）"><Descriptions column={1} items={[{key:"provider",label:"服务",children:"Supabase Auth"},{key:"password",label:"密码登录",children:<Tag color="success">可用</Tag>},{key:"passkey",label:"Passkey",children:<Tag>即将支持</Tag>}]}/><Alert type="info" showIcon message="Passkey 仅作原型预留，本版本不实现。"/></Card>
+  <Card title="通知"><Form layout="vertical" style={{maxWidth:560}}><Form.Item label="通知接收邮箱" extra="用于凭证到期、服务异常等告警，不是管理员账号。"><Input prefix={<MailOutlined/>} defaultValue="notify@example.com"/></Form.Item><Button type="primary" icon={<ApiOutlined/>} onClick={()=>message.success("Mock 测试通知发送成功")}>发送测试通知</Button></Form></Card>
+ </div></>;
 }

@@ -1,52 +1,6 @@
 import { expect, test } from "@playwright/test";
-
-test("all primary pages are reachable and do not overflow", async ({ page }) => {
-  const paths = ["/login", "/dashboard", "/tools", "/tools/new-rest", "/tools/import-openapi", "/tools/import-mcp", "/tools/mail-search", "/connections", "/connections/new", "/connections/qq-mail", "/publications", "/publications/new", "/publications/personal-mcp", "/clients", "/clients/new", "/clients/chatgpt", "/grants", "/logs", "/logs/req-9f2a", "/security-events", "/alerts", "/settings"];
-  for (const path of paths) {
-    await page.goto(path);
-    await expect(page.locator("body")).toBeVisible();
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
-    expect(overflow, `${path} has horizontal overflow`).toBe(false);
-  }
-});
-
-test("REST Tool wizard is clickable", async ({ page }) => {
-  await page.goto("/tools/new-rest");
-  const done = page.getByText("流程已完成");
-  const action = page.getByRole("button", { name: /下一步|保\s*存/ });
-  for (let index = 0; index < 10; index += 1) {
-    if (await done.isVisible()) break;
-    await expect(action).toBeVisible();
-    await action.click();
-  }
-  await expect(done).toBeVisible();
-});
-
-test("mobile wizard advances visibly without covering test input", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/tools/new-rest");
-
-  const title = page.getByTestId("wizard-step-title");
-  const next = page.getByRole("button", { name: "下一步" });
-  await expect(title).toContainText("基本信息");
-
-  for (const expected of ["Connection", "参数映射", "Schema", "风险", "测试"]) {
-    await next.click();
-    await expect(title).toContainText(expected);
-  }
-
-  const testInput = page.getByTestId("test-parameters");
-  const actions = page.getByTestId("wizard-actions");
-  await actions.scrollIntoViewIfNeeded();
-  const [inputBox, actionsBox] = await Promise.all([testInput.boundingBox(), actions.boundingBox()]);
-  expect(inputBox).not.toBeNull();
-  expect(actionsBox).not.toBeNull();
-  expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(actionsBox!.y + 1);
-});
-
-test("login enters dashboard", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByLabel("密码").fill("demo");
-  await page.getByRole("button", { name: "登录管理后台" }).click();
-  await expect(page).toHaveURL(/dashboard/);
-});
+const routes=["/login","/dashboard","/services","/services/new","/services/qq-mail","/endpoints","/endpoints/new","/endpoints/personal-readonly","/calls","/calls/req-a91f","/settings"];
+test("all V2 routes render without page overflow",async({page})=>{for(const path of routes){await page.goto(path);await expect(page.locator("body")).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1),path+" overflows").toBe(false)}});
+test("service wizard only connects an existing upstream MCP",async({page})=>{await page.goto("/services/new");await page.getByRole("button",{name:/MCP 服务/}).click();await expect(page.getByTestId("wizard-title")).toContainText("基本信息");await expect(page.getByText("API 转 MCP")).toHaveCount(0);await page.getByRole("button",{name:"下一步"}).click();await expect(page.getByTestId("wizard-title")).toContainText("地址与传输");await page.getByRole("button",{name:"上一步"}).click();await expect(page.getByTestId("wizard-title")).toContainText("基本信息");expect(await page.getByTestId("wizard-actions").boundingBox()).not.toBeNull()});
+test("endpoint wizard contains selection, conversion and permission steps",async({page})=>{await page.goto("/endpoints/new");await expect(page.getByRole("button",{name:"返回"})).toBeVisible();await page.getByRole("button",{name:"下一步"}).click();await expect(page.getByTestId("wizard-title")).toContainText("发布协议");await expect(page.getByRole("button",{name:/MCP 端点/})).toBeVisible();await expect(page.getByRole("button",{name:/OpenAPI API 端点/})).toBeVisible();await page.getByRole("button",{name:"下一步"}).click();await expect(page.getByTestId("wizard-title")).toContainText("服务与能力");await page.getByRole("button",{name:"下一步"}).click();await expect(page.getByTestId("wizard-title")).toContainText("能力转换");await page.getByRole("button",{name:"编辑能力转换"}).first().click();await expect(page.getByText(/来源服务：/)).toBeVisible()});
+test("login enters dashboard",async({page})=>{await page.goto("/login");await page.getByRole("button",{name:"登录管理后台"}).click();await expect(page).toHaveURL(/dashboard/)});
