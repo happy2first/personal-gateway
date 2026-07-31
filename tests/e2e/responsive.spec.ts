@@ -22,6 +22,28 @@ test("REST Tool wizard is clickable", async ({ page }) => {
   await expect(done).toBeVisible();
 });
 
+test("mobile wizard advances visibly without covering test input", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/tools/new-rest");
+
+  const title = page.getByTestId("wizard-step-title");
+  const next = page.getByRole("button", { name: "下一步" });
+  await expect(title).toContainText("基本信息");
+
+  for (const expected of ["Connection", "参数映射", "Schema", "风险", "测试"]) {
+    await next.click();
+    await expect(title).toContainText(expected);
+  }
+
+  const testInput = page.getByLabel("测试参数");
+  const actions = page.getByTestId("wizard-actions");
+  await actions.scrollIntoViewIfNeeded();
+  const [inputBox, actionsBox] = await Promise.all([testInput.boundingBox(), actions.boundingBox()]);
+  expect(inputBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(actionsBox!.y + 1);
+});
+
 test("login enters dashboard", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("密码").fill("demo");
