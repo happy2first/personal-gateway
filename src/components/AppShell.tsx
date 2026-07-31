@@ -23,7 +23,7 @@ export function AppShell({path,children}:{path:string;children:ReactNode}){
    <Menu mode="inline" selectedKeys={[selected]} items={nav.map(x=>({...x,label:<Link href={x.key}>{x.label}</Link>}))}/>
   </Layout.Sider>
   <div className={styles.body}>
-   <header className={styles.desktopTop}><Space><span className={styles.dot}/><span>网关运行中</span></Space><Space><Avatar icon={<UserOutlined/>}/><span>管理员</span></Space></header>
+   <header className={styles.desktopTop}><Space>{secondary?<BackButton fallback={selected}/>:null}<span className={styles.dot}/><span>{secondary?mobileTitle:"网关运行中"}</span></Space><Space><Avatar icon={<UserOutlined/>}/><span>管理员</span></Space></header>
    <header className={styles.mobileTop}>{secondary?<Space><BackButton fallback={selected}/><strong>{mobileTitle}</strong></Space>:<Space><span className={styles.brandMark}><SafetyCertificateOutlined/></span><strong>个人网关</strong></Space>}<Tag color="success">运行中</Tag></header>
    <main className={styles.content}>{children}</main>
   </div>
