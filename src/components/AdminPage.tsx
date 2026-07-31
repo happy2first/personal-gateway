@@ -89,7 +89,10 @@ function ToolFlow({ mode }: { mode: string }) {
   const [interactive, setInteractive] = useState(false);
   const steps = meta.slice(1);
 
-  useEffect(() => setInteractive(true), []);
+  useEffect(() => {
+    const readyTimer = window.setTimeout(() => setInteractive(true), 0);
+    return () => window.clearTimeout(readyTimer);
+  }, []);
 
   const moveTo = (next: number) => {
     setCurrent(next);
