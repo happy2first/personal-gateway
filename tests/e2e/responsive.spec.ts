@@ -12,16 +12,13 @@ test("all primary pages are reachable and do not overflow", async ({ page }) => 
 
 test("REST Tool wizard is clickable", async ({ page }) => {
   await page.goto("/tools/new-rest");
-  const next = page.getByRole("button", { name: "下一步", exact: true });
-  const save = page.getByRole("button", { name: "保存", exact: true });
-  for (let index = 0; index < 10 && !(await save.isVisible()); index += 1) {
-    await expect(next).toBeVisible();
-    await next.click();
-    await page.waitForTimeout(80);
+  const done = page.getByText("流程已完成");
+  const action = page.getByRole("button", { name: /下一步|保存/ });
+  for (let index = 0; index < 10 && !(await done.isVisible()); index += 1) {
+    await expect(action).toBeVisible();
+    await action.click();
   }
-  await expect(save).toBeVisible();
-  await save.click();
-  await expect(page.getByText("流程已完成")).toBeVisible();
+  await expect(done).toBeVisible();
 });
 
 test("login enters dashboard", async ({ page }) => {
