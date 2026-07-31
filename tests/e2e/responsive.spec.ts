@@ -14,8 +14,10 @@ test("REST Tool wizard is clickable", async ({ page }) => {
   await page.goto("/tools/new-rest");
   const done = page.getByText("流程已完成");
   const action = page.getByRole("button", { name: /下一步|保存/ });
-  for (let index = 0; index < 10 && !(await done.isVisible()); index += 1) {
-    await expect(action).toBeVisible();
+  const ready = done.or(action);
+  for (let index = 0; index < 10; index += 1) {
+    await expect(ready).toBeVisible();
+    if (await done.isVisible()) break;
     await action.click();
   }
   await expect(done).toBeVisible();
