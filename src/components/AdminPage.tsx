@@ -86,7 +86,10 @@ function ToolFlow({ mode }: { mode: string }) {
   const meta = mode === "new-rest" ? ["新增 REST Tool", "基本信息", "Connection", "参数映射", "Schema", "风险", "测试", "保存"] : mode === "import-openapi" ? ["导入 OpenAPI", "文档", "模拟解析", "选择 Operation", "批量调整", "导入 Tool"] : ["注册远程 MCP", "地址与认证", "连接测试", "发现 Tool", "选择导入", "完成"];
   const [current, setCurrent] = useState(0);
   const [done, setDone] = useState(false);
+  const [interactive, setInteractive] = useState(false);
   const steps = meta.slice(1);
+
+  useEffect(() => setInteractive(true), []);
 
   const moveTo = (next: number) => {
     setCurrent(next);
@@ -102,8 +105,8 @@ function ToolFlow({ mode }: { mode: string }) {
           <FlowStep mode={mode} step={current} />
         </>}
         <div className={styles.stickyActions} data-testid="wizard-actions">
-          <Button disabled={current === 0 || done} onClick={() => moveTo(current - 1)}>上一步</Button>
-          <Button type="primary" disabled={done} onClick={() => current === steps.length - 1 ? setDone(true) : moveTo(current + 1)}>{current === steps.length - 1 ? "保存" : "下一步"}</Button>
+          <Button disabled={!interactive || current === 0 || done} onClick={() => moveTo(current - 1)}>上一步</Button>
+          <Button type="primary" disabled={!interactive || done} onClick={() => current === steps.length - 1 ? setDone(true) : moveTo(current + 1)}>{current === steps.length - 1 ? "保存" : "下一步"}</Button>
         </div>
       </Card>
     </div>
