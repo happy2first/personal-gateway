@@ -1,6 +1,6 @@
 "use client";
 import { DeleteOutlined, PlusOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, List, Radio, Select, Switch, Typography } from "antd";
+import { Alert, Button, Card, DatePicker, Form, Grid, Input, InputNumber, List, Radio, Select, Switch, Typography } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 import { ConnectionHealth, ResponsiveDrawer, SecretField } from "@/components/Shared";
@@ -52,6 +52,8 @@ type DraftKeyValue = CredentialKeyValue & { value: string };
 const defaultKeyValue = (id: string): DraftKeyValue => ({ id, location: "header", name: "", value: "", credentialKey: `credential.custom.${id}`, valueType: "string", secret: true, enabled: true });
 
 export function CredentialKeyValueEditor({ rows, onChange }: { rows: DraftKeyValue[]; onChange: (rows: DraftKeyValue[]) => void }) {
+  const screens = Grid.useBreakpoint();
+  const mobile = !screens.md;
   const duplicateNames = rows.filter((row, index) => row.enabled && rows.findIndex(other => other.enabled && other.location === row.location && other.name.trim() === row.name.trim()) !== index).map(row => row.id);
   const update = (id: string, field: keyof DraftKeyValue, value: string | boolean) => onChange(rows.map(row => row.id === id ? { ...row, [field]: value } : row));
   const editor = (row: DraftKeyValue) => <>
@@ -65,8 +67,8 @@ export function CredentialKeyValueEditor({ rows, onChange }: { rows: DraftKeyVal
   </>;
   return <>
     {duplicateNames.length ? <Alert type="error" showIcon message="同一注入位置不能使用重复参数名"/> : null}
-    <div className={styles.credentialRows}><div className={styles.credentialHeader}><span>位置</span><span>参数名称</span><span>值类型</span><span>值</span><span>前缀</span><span>启用</span><span/></div>{rows.map(row => <div className={styles.credentialRow} key={row.id}>{editor(row)}</div>)}</div>
-    <div className={styles.credentialCards}>{rows.map((row, index) => <Card size="small" title={`参数 ${index + 1}`} key={row.id}><div className={styles.credentialCardFields}>{editor(row)}</div></Card>)}</div>
+    {!mobile ? <div className={styles.credentialRows}><div className={styles.credentialHeader}><span>位置</span><span>参数名称</span><span>值类型</span><span>值</span><span>前缀</span><span>启用</span><span/></div>{rows.map(row => <div className={styles.credentialRow} key={row.id}>{editor(row)}</div>)}</div> : null}
+    {mobile ? <div className={styles.credentialCards}>{rows.map((row, index) => <Card size="small" title={`参数 ${index + 1}`} key={row.id}><div className={styles.credentialCardFields}>{editor(row)}</div></Card>)}</div> : null}
     <Button block type="dashed" icon={<PlusOutlined/>} onClick={() => onChange([...rows, defaultKeyValue(`row-${rows.length + 1}`)])}>新增键值</Button>
   </>;
 }
