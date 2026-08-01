@@ -22,6 +22,8 @@ function useCurrentTime() { const [now, setNow] = useState(0); useEffect(() => {
 
 export function CredentialExpiryField({ value, onChange }: { value: CredentialExpiry; onChange: (value: CredentialExpiry) => void }) {
   const [timezone, setTimezone] = useState("UTC");
+  const screens = Grid.useBreakpoint();
+  const mobile = !screens.md;
   const now = useCurrentTime();
   useEffect(() => { const timer = window.setTimeout(() => setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), 0); return () => window.clearTimeout(timer); }, []);
   const setMode = (mode: CredentialExpiry["mode"]) => {
@@ -34,16 +36,37 @@ export function CredentialExpiryField({ value, onChange }: { value: CredentialEx
     if (issuedAt && seconds && Number.isInteger(seconds) && seconds > 0) next.expiresAt = calculateExpiry(issuedAt, seconds);
     onChange(next);
   };
+  const updateLocalDateTime = (current: string | undefined, part: "date" | "time", nextValue: string, mode: "datetime" | "duration") => {
+    const date = current ? new Date(current) : new Date();
+    if (part === "date") {
+      const [year, month, day] = nextValue.split("-").map(Number);
+      date.setFullYear(year, month - 1, day);
+    } else {
+      const [hours, minutes] = nextValue.split(":").map(Number);
+      date.setHours(hours, minutes, 0, 0);
+    }
+    const iso = date.toISOString();
+    if (mode === "duration") updateDuration(iso, value.expiresInSeconds);
+    else onChange({ mode: "datetime", expiresAt: iso, source: "manual" });
+  };
+  const localParts = (iso?: string) => {
+    if (!iso) return { date: "", time: "" };
+    const date = new Date(iso);
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString();
+    return { date: local.slice(0, 10), time: local.slice(11, 16) };
+  };
   return <div className={styles.expiryField}>
     <Radio.Group value={value.mode} onChange={event => setMode(event.target.value)} options={[{ label: "未提供或未知", value: "unknown" }, { label: "指定过期日期时间", value: "datetime" }, { label: "按有效时长计算", value: "duration" }]}/>
     {value.mode === "unknown" ? <Alert type="info" showIcon message="有效期未知" description="未填写过期时间不等于永久有效；建议通过测试或供应商响应补全。"/> : null}
     {value.mode === "datetime" ? <div className={styles.formGrid}>
-      <Form.Item label="过期日期与时间" required><DatePicker showTime value={value.expiresAt ? dayjs(value.expiresAt) : null} style={{ width: "100%" }} onChange={date => onChange({ mode: "datetime", expiresAt: date?.toDate().toISOString(), source: "manual" })}/></Form.Item>
+      <Form.Item label={mobile ? "过期日期" : "过期日期与时间"} required>{mobile ? <Input aria-label="过期日期" type="date" value={localParts(value.expiresAt).date} onChange={event => updateLocalDateTime(value.expiresAt, "date", event.target.value, "datetime")}/> : <DatePicker showTime value={value.expiresAt ? dayjs(value.expiresAt) : null} style={{ width: "100%" }} onChange={date => onChange({ mode: "datetime", expiresAt: date?.toDate().toISOString(), source: "manual" })}/>}</Form.Item>
+      {mobile ? <Form.Item label="过期时间" required><Input aria-label="过期时间" type="time" value={localParts(value.expiresAt).time} onChange={event => updateLocalDateTime(value.expiresAt, "time", event.target.value, "datetime")}/></Form.Item> : null}
       <Form.Item label="时区"><Input readOnly value={timezone}/></Form.Item>
       {value.expiresAt ? <Alert className={styles.span2} type={now > 0 && Date.parse(value.expiresAt) <= now ? "error" : "success"} showIcon message={`本地时间：${new Date(value.expiresAt).toLocaleString()}`} description={`UTC：${value.expiresAt}`}/> : null}
     </div> : null}
     {value.mode === "duration" ? <div className={styles.formGrid}>
-      <Form.Item label="起算时间" required><DatePicker showTime value={value.issuedAt ? dayjs(value.issuedAt) : null} style={{ width: "100%" }} onChange={date => updateDuration(date?.toDate().toISOString(), value.expiresInSeconds)}/></Form.Item>
+      <Form.Item label={mobile ? "起算日期" : "起算时间"} required>{mobile ? <Input aria-label="起算日期" type="date" value={localParts(value.issuedAt).date} onChange={event => updateLocalDateTime(value.issuedAt, "date", event.target.value, "duration")}/> : <DatePicker showTime value={value.issuedAt ? dayjs(value.issuedAt) : null} style={{ width: "100%" }} onChange={date => updateDuration(date?.toDate().toISOString(), value.expiresInSeconds)}/>}</Form.Item>
+      {mobile ? <Form.Item label="起算时间" required><Input aria-label="起算时间" type="time" value={localParts(value.issuedAt).time} onChange={event => updateLocalDateTime(value.issuedAt, "time", event.target.value, "duration")}/></Form.Item> : null}
       <Form.Item label="有效时长（秒）" required extra="从起算时间开始计算的相对时长，不是 Unix 时间戳。"><InputNumber aria-label="有效时长（秒）" min={1} precision={0} value={value.expiresInSeconds} addonAfter="秒" style={{ width: "100%" }} onChange={seconds => updateDuration(value.issuedAt, seconds)}/></Form.Item>
       {value.expiresAt && value.expiresInSeconds ? <Alert className={styles.span2} type="success" showIcon message={`易读结果：${readableDuration(value.expiresInSeconds)}`} description={`计算过期：${new Date(value.expiresAt).toLocaleString()}（${value.expiresAt}）`}/> : null}
     </div> : null}

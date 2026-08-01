@@ -98,43 +98,76 @@ test("login enters dashboard", async ({ page }) => {
   await expect(page).toHaveURL(/dashboard/);
 });
 
-test("service wizards share credential flow and mail has no provider step", async ({ page }) => {
+test("service wizards have no service templates and mail keeps its dedicated credential flow", async ({ page }) => {
   await page.goto("/services/new");
   for (const serviceType of ["MCP 服务", "API 服务", "邮箱服务"]) {
     await page.goto("/services/new");
     await page.getByRole("button", { name: new RegExp(serviceType) }).click();
     await expect(page.getByTestId("wizard-title")).toContainText("基本信息");
+    await expect(page.getByLabel("服务模板")).toHaveCount(0);
     if (serviceType === "邮箱服务") {
       await expect(page.getByText("服务商", { exact: true })).toHaveCount(0);
-      await expect(page.getByLabel("服务模板")).toBeVisible();
       await page.getByRole("button", { name: "下一步" }).click();
+      await expect(page.getByTestId("wizard-title")).toContainText("账号与授权码");
+      await expect(page.getByLabel("邮箱账号")).toBeVisible();
+      await expect(page.getByLabel("邮箱授权码")).toBeVisible();
+      await expect(page.getByText("注入方式或认证摘要")).toHaveCount(0);
     } else {
       await page.getByRole("button", { name: "下一步" }).click();
       await page.getByRole("button", { name: "下一步" }).click();
     }
-    await expect(page.getByTestId("wizard-title")).toContainText("认证与凭证");
-    await expect(page.getByText("端点调用方认证请在“端点发布”中配置。")).toBeVisible();
+    if (serviceType !== "邮箱服务") {
+      await expect(page.getByTestId("wizard-title")).toContainText("认证与凭证");
+      await expect(page.getByText("端点调用方认证请在“端点发布”中配置。")).toBeVisible();
+    }
   }
 });
 
-test("Baidu and Evernote templates use safe injection previews", async ({ page }) => {
-  await page.goto("/services/new");
-  await page.getByRole("button", { name: /MCP 服务/ }).click();
-  await page.getByLabel("服务模板").click();
-  await page.getByText("百度网盘 MCP", { exact: true }).click();
-  await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.locator('input[value="https://mcp-pan.baidu.com/sse"]')).toBeVisible();
-  await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.getByText("GET /sse?access_token=••••••••")).toBeVisible();
-  await expect(page.getByText("30 天", { exact: false })).toBeVisible();
-  expect(await page.content()).not.toContain("access_token=DEMO");
-
+test("Evernote uses the API built-in connector", async ({ page }) => {
   await page.goto("/services/new");
   await page.getByRole("button", { name: /API 服务/ }).click();
-  await page.getByLabel("服务模板").click();
-  await page.getByText("印象笔记 EDAM", { exact: true }).click();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("radio", { name: /使用内置连接器/ }).check();
+  await expect(page.getByText("印象笔记", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByTestId("wizard-title")).toContainText("连接与认证");
+  await page.getByLabel("服务名称").fill("我的印象笔记");
+  await page.getByRole("button", { name: "验证并继续" }).click();
+  await expect(page.getByTestId("wizard-title")).toContainText("能力发现");
+  await expect(page.getByText("已发现 5 项 EDAM 接口能力")).toBeVisible();
+});
+
+test("Evernote connection details show API definition summary", async ({ page }) => {
+  await page.goto("/services/evernote");
+  await page.getByRole("tab", { name: "连接与认证" }).click();
+  await expect(page.getByText("使用内置连接器", { exact: true })).toBeVisible();
+  await expect(page.getByText("印象笔记", { exact: true })).toBeVisible();
+  await expect(page.getByText("NoteStore URL", { exact: true })).toBeVisible();
+});
+
+test("capability selection links parent, child and half-selected state", async ({ page }) => {
+  await page.goto("/endpoints/new");
   await page.getByRole("button", { name: "下一步" }).click();
   await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.getByText(/EDAM Executor 作为 authToken/)).toBeVisible();
-  await expect(page.getByLabel("注入位置")).toHaveCount(0);
+  const parent = page.getByLabel("QQ邮箱全选");
+  await expect(parent).toBeChecked({ indeterminate: true });
+  await parent.check();
+  await expect(page.getByText(/已选择 \d+ 项能力/).last()).toBeVisible();
+  await page.getByRole("checkbox", { name: /删除邮件/ }).uncheck();
+  await expect(parent).toBeChecked({ indeterminate: true });
+});
+
+test("mail validation advances to IMAP and mobile expiry uses native controls", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/services/new");
+  await page.getByRole("button", { name: /邮箱服务/ }).click();
+  await expect(page.getByLabel("服务模板")).toHaveCount(0);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByLabel("邮箱账号").fill("demo@example.com");
+  await page.getByLabel("邮箱授权码").fill("DEMO_AUTH_CODE");
+  await page.getByRole("radio", { name: "指定过期日期时间" }).check();
+  await expect(page.getByLabel("过期日期")).toHaveAttribute("type", "date");
+  await expect(page.getByLabel("过期时间")).toHaveAttribute("type", "time");
+  await page.getByRole("button", { name: "验证并继续" }).click();
+  await expect(page.getByTestId("wizard-title")).toContainText("IMAP");
 });

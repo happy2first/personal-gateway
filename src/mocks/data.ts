@@ -21,10 +21,10 @@ const noteCaps = [
 
 export const services:Service[]=[
  {id:"qq-mail",name:"QQ邮箱",code:"qq_mail",description:"个人 QQ 邮箱收发服务",category:"邮箱",type:"邮箱",status:"running",transport:"IMAP + SMTP",updatedAt:"今天 18:32",capabilities:[...mailCaps]},
- {id:"baidu",name:"百度网盘",code:"baidu_drive",description:"文件检索、读取与管理",category:"网盘",type:"API",status:"running",transport:"OpenAPI / OAuth2",updatedAt:"今天 17:10",capabilities:[...fileCaps]},
- {id:"evernote",name:"印象笔记",code:"evernote",description:"个人笔记查询与写入",category:"笔记",type:"API",status:"running",transport:"API / Token",updatedAt:"昨天 21:08",capabilities:[...noteCaps]},
+ {id:"baidu",name:"百度网盘",code:"baidu_drive",description:"文件检索、读取与管理",category:"网盘",type:"API",status:"running",transport:"OpenAPI / OAuth2",updatedAt:"今天 17:10",capabilities:[...fileCaps],apiDefinition:{mode:"openapi"}},
+ {id:"evernote",name:"印象笔记",code:"evernote",description:"个人笔记查询与写入",category:"笔记",type:"API",status:"running",transport:"API / Token",updatedAt:"昨天 21:08",capabilities:[...noteCaps],apiDefinition:{mode:"builtin",connector:"evernote",noteStoreUrl:"https://mock.evernote.local/shard/demo/notestore"}},
  {id:"finance-mcp",name:"公共金融行情",code:"finance_market",description:"公共市场行情查询",category:"金融",type:"MCP",status:"running",transport:"Streamable HTTP",updatedAt:"昨天 15:22",capabilities:[{id:"quote-search",name:"查询行情",description:"按代码查询公开行情",risk:"read",permission:"allow"}]},
- {id:"office-api",name:"办公日历",code:"office_calendar",description:"日程查询与创建",category:"办公",type:"API",status:"untested",transport:"OpenAPI",updatedAt:"7月30日",capabilities:[{id:"event-read",name:"查询日程",description:"读取日程",risk:"read",permission:"allow"},{id:"event-create",name:"创建日程",description:"创建新日程",risk:"write",permission:"confirm"}]}
+ {id:"office-api",name:"办公日历",code:"office_calendar",description:"日程查询与创建",category:"办公",type:"API",status:"untested",transport:"OpenAPI",updatedAt:"7月30日",capabilities:[{id:"event-read",name:"查询日程",description:"读取日程",risk:"read",permission:"allow"},{id:"event-create",name:"创建日程",description:"创建新日程",risk:"write",permission:"confirm"}],apiDefinition:{mode:"manual"}}
 ];
 
 export const endpoints:Endpoint[]=[
