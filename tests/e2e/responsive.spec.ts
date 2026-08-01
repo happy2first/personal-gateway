@@ -36,20 +36,6 @@ test("endpoint wizard is Ant Design and contains eight steps", async ({ page }, 
   }
 });
 
-test("service wizard uses one selection to drive one form", async ({ page }) => {
-  await page.goto("/services/new");
-  await expect(page.getByText("第 1/1 步 · 选择类型")).toBeVisible();
-  await page.getByRole("button", { name: /API 服务/ }).click();
-  await expect(page.getByText("第 1/6 步 · 基本信息")).toBeVisible();
-  await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.getByTestId("wizard-title")).toContainText("API 定义");
-  await expect(page.getByText("OpenAPI 导入", { exact: true })).toBeVisible();
-  await expect(page.getByText("手工接口定义", { exact: true })).toHaveCount(0);
-  await page.getByText("手工配置", { exact: true }).click();
-  await expect(page.getByText("手工接口定义", { exact: true })).toBeVisible();
-  await expect(page.getByText("OpenAPI 导入", { exact: true })).toHaveCount(0);
-});
-
 test("mobile details use navigation pages and no tabs", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-375", "mobile-only assertion");
   await page.goto("/services/qq-mail");
@@ -96,4 +82,45 @@ test("login enters dashboard", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "登录管理后台" }).click();
   await expect(page).toHaveURL(/dashboard/);
+});
+
+test("service wizards share credential flow and mail has no provider step", async ({ page }) => {
+  await page.goto("/services/new");
+  for (const serviceType of ["MCP 服务", "API 服务", "邮箱服务"]) {
+    await page.goto("/services/new");
+    await page.getByRole("button", { name: new RegExp(serviceType) }).click();
+    await expect(page.getByTestId("wizard-title")).toContainText("基本信息");
+    if (serviceType === "邮箱服务") {
+      await expect(page.getByText("服务商", { exact: true })).toHaveCount(0);
+      await expect(page.getByLabel("服务模板")).toBeVisible();
+      await page.getByRole("button", { name: "下一步" }).click();
+    } else {
+      await page.getByRole("button", { name: "下一步" }).click();
+      await page.getByRole("button", { name: "下一步" }).click();
+    }
+    await expect(page.getByTestId("wizard-title")).toContainText("认证与凭证");
+    await expect(page.getByText("端点调用方认证请在“端点发布”中配置。")).toBeVisible();
+  }
+});
+
+test("Baidu and Evernote templates use safe injection previews", async ({ page }) => {
+  await page.goto("/services/new");
+  await page.getByRole("button", { name: /MCP 服务/ }).click();
+  await page.getByLabel("服务模板").click();
+  await page.getByText("百度网盘 MCP", { exact: true }).click();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.locator('input[value="https://mcp-pan.baidu.com/sse"]')).toBeVisible();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByText("GET /sse?access_token=••••••••")).toBeVisible();
+  await expect(page.getByText("30 天", { exact: false })).toBeVisible();
+  expect(await page.content()).not.toContain("access_token=DEMO");
+
+  await page.goto("/services/new");
+  await page.getByRole("button", { name: /API 服务/ }).click();
+  await page.getByLabel("服务模板").click();
+  await page.getByText("印象笔记 EDAM", { exact: true }).click();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByText(/EDAM Executor 作为 authToken/)).toBeVisible();
+  await expect(page.getByLabel("注入位置")).toHaveCount(0);
 });

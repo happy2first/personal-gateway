@@ -1,3 +1,4 @@
 import { describe, expect, it } from "vitest";
 import { mockGatewayService } from "./gateway-service";
 describe("mock gateway service",()=>{it("keeps relations valid",async()=>{const [services,endpoints,calls]=await Promise.all([mockGatewayService.services(),mockGatewayService.endpoints(),mockGatewayService.calls()]);expect(services.length).toBeGreaterThan(0);expect(endpoints.every(e=>e.serviceIds.every(id=>services.some(s=>s.id===id)))).toBe(true);expect(calls.every(c=>services.some(s=>s.id===c.serviceId)&&endpoints.some(e=>e.id===c.endpointId))).toBe(true)})});
+describe("mock credential metadata",()=>{it("stores references and expiry metadata without plaintext",async()=>{const record=await mockGatewayService.serviceAuth("baidu");expect(record?.authConfig.credentialKey).toBe("credential.baidu.primary");expect(record?.authConfig.expiry?.expiresInSeconds).toBe(2592000);expect(JSON.stringify(record)).not.toContain("DEMO_SECRET")})});

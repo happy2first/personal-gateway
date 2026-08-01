@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
  testDir:"./tests/e2e",use:{baseURL:process.env.PLAYWRIGHT_BASE_URL??"http://127.0.0.1:3000"},
- webServer:process.env.PLAYWRIGHT_BASE_URL?undefined:{command:process.env.CI?"npm run start -- -H 127.0.0.1":"npm run dev -- -H 127.0.0.1",url:"http://127.0.0.1:3000",reuseExistingServer:true,timeout:120000},
+ webServer:process.env.PLAYWRIGHT_BASE_URL?undefined:{command:process.env.CI?"npm run start -- --hostname 127.0.0.1":"npm run dev -- --hostname 127.0.0.1",url:"http://127.0.0.1:3000",reuseExistingServer:true,timeout:120000},
  projects:[
   {name:"mobile-375",use:{viewport:{width:375,height:812}}},
   {name:"tablet-768",use:{viewport:{width:768,height:1024}}},
