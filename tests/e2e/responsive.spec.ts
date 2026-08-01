@@ -150,11 +150,11 @@ test("capability selection links parent, child and half-selected state", async (
   await page.getByRole("button", { name: "下一步" }).click();
   await page.getByRole("button", { name: "下一步" }).click();
   const parent = page.getByLabel("QQ邮箱全选");
-  await expect(parent).toHaveAttribute("aria-checked", "mixed");
+  await expect(parent).toBeChecked({ indeterminate: true });
   await parent.check();
   await expect(page.getByText(/已选择 \d+ 项能力/).last()).toBeVisible();
   await page.getByText("删除邮件", { exact: true }).click();
-  await expect(parent).toHaveAttribute("aria-checked", "mixed");
+  await expect(parent).toBeChecked({ indeterminate: true });
 });
 
 test("mail validation advances to IMAP and mobile expiry uses native controls", async ({ page }) => {
