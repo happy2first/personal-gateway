@@ -153,7 +153,7 @@ test("capability selection links parent, child and half-selected state", async (
   await expect(parent).toBeChecked({ indeterminate: true });
   await parent.check();
   await expect(page.getByText(/已选择 \d+ 项能力/).last()).toBeVisible();
-  await page.getByText("删除邮件", { exact: true }).click();
+  await page.getByRole("checkbox", { name: /删除邮件/ }).uncheck();
   await expect(parent).toBeChecked({ indeterminate: true });
 });
 
