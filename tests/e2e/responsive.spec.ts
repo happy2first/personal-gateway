@@ -38,6 +38,7 @@ test("endpoint wizard is Ant Design and contains eight steps", async ({ page }, 
 
 test("service wizard uses one selection to drive one form", async ({ page }) => {
   await page.goto("/services/new");
+  await expect(page.getByText("第 1/1 步 · 选择类型")).toBeVisible();
   await page.getByRole("button", { name: /API 服务/ }).click();
   await expect(page.getByText("第 1/6 步 · 基本信息")).toBeVisible();
   await page.getByRole("button", { name: "下一步" }).click();
