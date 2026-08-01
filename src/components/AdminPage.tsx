@@ -32,6 +32,9 @@ function Header({ title, subtitle, extra }: { title: string; subtitle?: string; 
   return <div className={styles.pageHeader}><div><h1>{title}</h1>{subtitle ? <div className={styles.subtitle}>{subtitle}</div> : null}</div>{extra}</div>;
 }
 function Loading() { return <Card><Skeleton active paragraph={{ rows: 6 }}/></Card>; }
+function MobileKeyValues({ items }: { items: Array<{ label: string; value: React.ReactNode }> }) {
+  return <div className={styles.mobileKeyValues}>{items.map(item => <div className={styles.mobileKeyValue} key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>;
+}
 
 export function AdminPage({ path }: { path: string }) {
   const parts = path.split("/").filter(Boolean);
@@ -81,19 +84,21 @@ function CapabilityCards({ item }: { item: Service }) {
   return <div className={styles.stack}>{item.capabilities.map(capability => <Card size="small" key={capability.id}><div className={styles.capRow}><span><strong>{capability.name}</strong><br/><small className={styles.muted}>{capability.id} · {capability.description}</small></span><Tag>{capability.risk === "read" ? "只读" : capability.risk === "delete" ? "高危" : "写入"}</Tag></div></Card>)}</div>;
 }
 function ServiceOverview({ item }: { item: Service }) {
-  return <div className={styles.detailGrid}><Card title="基本信息"><Descriptions column={{ xs: 1, sm: 2 }} items={[
+  const facts=[{label:"服务标识",value:<code key="code">{item.code}</code>},{label:"类型",value:item.type},{label:"状态",value:<StatusTag key="status" value={item.status}/>},{label:"连接方式",value:item.transport},{label:"更新时间",value:item.updatedAt}];
+  return <div className={styles.detailGrid}><Card title="基本信息"><div className={styles.desktopOnly}><Descriptions column={{ xs: 1, sm: 2 }} items={[
     { key: "code", label: "服务标识", children: item.code }, { key: "type", label: "类型", children: item.type },
     { key: "status", label: "状态", children: <StatusTag value={item.status}/> }, { key: "transport", label: "连接方式", children: item.transport },
     { key: "updated", label: "更新时间", children: item.updatedAt },
-  ]}/></Card><Card title="运行控制"><Space direction="vertical" style={{ width: "100%" }}><Switch defaultChecked checkedChildren="已启用" unCheckedChildren="已停用"/><Button block href={"/calls?service=" + item.id}>查看调用记录</Button></Space></Card></div>;
+  ]}/></div><div className={styles.mobileOnly}><MobileKeyValues items={facts}/></div></Card><Card title="运行控制"><Space direction="vertical" style={{ width: "100%" }}><Switch defaultChecked checkedChildren="已启用" unCheckedChildren="已停用"/><Button block href={"/calls?service=" + item.id}>查看调用记录</Button></Space></Card></div>;
 }
 function ServiceConnection({ item }: { item: Service }) {
-  return <><Alert type="info" showIcon message="这里只管理上游连接与认证" description="界面不显示任何密钥；对外认证在端点发布中配置。"/><Descriptions className={styles.sectionGap} column={1} bordered items={[
+  const [open,setOpen]=useState(false);const facts=[{label:"上游连接方式",value:item.transport},{label:"上游认证",value:"已配置（已脱敏）"},{label:"凭证有效期",value:<Tag key="expire" color="warning">2026-08-06 到期</Tag>},{label:"TLS",value:"已启用"}];
+  return <><Alert type="info" showIcon message="这里只管理上游连接与认证" description="界面不显示任何密钥；对外认证在端点发布中配置。"/><div className={styles.desktopOnly}><Descriptions className={styles.sectionGap} column={1} bordered items={[
     { key: "transport", label: "上游连接方式", children: item.transport }, { key: "auth", label: "上游认证", children: "已配置（已脱敏）" },
     { key: "expire", label: "凭证有效期", children: <Tag color="warning">2026-08-06 到期</Tag> }, { key: "tls", label: "TLS", children: "已启用" },
-  ]}/><Button type="primary" icon={<KeyOutlined/>} onClick={() => message.info("打开重新配置令牌与有效期表单")}>重新配置令牌与有效期</Button></>;
+  ]}/></div><div className={styles.mobileOnly}><MobileKeyValues items={facts}/></div><Button className={styles.sectionGap} type="primary" icon={<KeyOutlined/>} onClick={() => setOpen(true)}>重新配置令牌与有效期</Button><Modal open={open} title="重新配置令牌与有效期" okText="保存配置" cancelText="取消" onCancel={()=>setOpen(false)} onOk={()=>{setOpen(false);message.success("Mock 令牌配置已更新")}}><Form layout="vertical"><Form.Item label="Mock 认证值" required><Input.Password placeholder="仅用于原型演示，请勿填写真实 Secret"/></Form.Item><Form.Item label="凭证到期时间" required><DatePicker showTime style={{width:"100%"}}/></Form.Item></Form></Modal></>;
 }
-function ServiceTests() { return <Space direction="vertical" style={{ width: "100%" }}><Alert type="success" showIcon message="最近一次模拟测试成功"/><Timeline items={[{ color: "green", children: "18:32 连接测试成功" }, { color: "blue", children: "18:31 保存原始能力结构快照" }]}/><Button type="primary" icon={<ReloadOutlined/>}>重新测试</Button></Space>; }
+function ServiceTests() { return <Space direction="vertical" style={{ width: "100%" }}><Alert type="success" showIcon message="最近一次模拟测试成功"/><Timeline items={[{ color: "green", children: "18:32 连接测试成功" }, { color: "blue", children: "18:31 保存原始能力结构快照" }]}/><Button type="primary" icon={<ReloadOutlined/>} onClick={()=>message.success("重新测试成功（Mock）")}>重新测试</Button></Space>; }
 function LinkedEndpoints({ item }: { item: Service }) {
   return <div className={styles.cards}>{allEndpoints.filter(endpoint => endpoint.serviceIds.includes(item.id)).map(endpoint => <Link key={endpoint.id} href={"/endpoints/" + endpoint.id}><Card hoverable><div className={styles.entityTop}><strong>{endpoint.name}</strong><StatusTag value={endpoint.status}/></div><div className={styles.entityMeta}><Tag>{endpoint.protocol}</Tag><span>{item.capabilities.length} 项能力</span></div></Card></Link>)}</div>;
 }
@@ -135,11 +140,12 @@ function EndpointList() {
   </Card>)}</div>}</>;
 }
 function EndpointOverview({ item }: { item: Endpoint }) {
-  return <div className={styles.detailGrid}><Card title="端点信息"><Descriptions column={1} bordered items={[
+  const facts=[{label:"协议",value:item.protocol},{label:"状态",value:<StatusTag key="status" value={item.status}/>},{label:"端点地址",value:<code key="url">{item.url}</code>},{label:"成功率",value:item.successRate+"%"},{label:"今日调用",value:item.calls+" 次"}];
+  return <div className={styles.detailGrid}><Card title="端点信息"><div className={styles.desktopOnly}><Descriptions column={1} bordered items={[
     { key: "protocol", label: "协议", children: item.protocol }, { key: "status", label: "状态", children: <StatusTag value={item.status}/> },
     { key: "url", label: "端点地址", children: <Input readOnly value={item.url}/> }, { key: "rate", label: "成功率", children: item.successRate + "%" },
     { key: "calls", label: "今日调用", children: item.calls + " 次" },
-  ]}/></Card><Card title="运行控制"><Space direction="vertical" style={{ width: "100%" }}><Switch defaultChecked checkedChildren="运行中" unCheckedChildren="已停用"/><Button href={"/calls?endpoint=" + item.id} block>查看调用记录</Button></Space></Card></div>;
+  ]}/></div><div className={styles.mobileOnly}><MobileKeyValues items={facts}/></div></Card><Card title="运行控制"><Space direction="vertical" style={{ width: "100%" }}><Switch defaultChecked checkedChildren="运行中" unCheckedChildren="已停用"/><Button href={"/calls?endpoint=" + item.id} block>查看调用记录</Button></Space></Card></div>;
 }
 function EndpointSources({ item }: { item: Endpoint }) {
   return <div className={styles.cards}>{item.serviceIds.map(id => { const service = allServices.find(x => x.id === id)!; return <Link href={"/services/" + id} key={id}><Card hoverable><strong>{service.name}</strong><div className={styles.entityMeta}><Tag>{service.type}</Tag><span>{service.capabilities.length} 项原始能力</span></div></Card></Link>; })}</div>;
