@@ -18,9 +18,11 @@ const authOptions: { value: AuthType; label: string; description: string }[] = [
 
 const initialIssuedAt = "2026-08-01T12:00:00.000Z";
 const unknownExpiry: CredentialExpiry = { mode: "unknown", source: "manual" };
+function useCurrentTime() { const [now, setNow] = useState(0); useEffect(() => { const timer = window.setTimeout(() => setNow(Date.now()), 0); return () => window.clearTimeout(timer); }, []); return now; }
 
 export function CredentialExpiryField({ value, onChange }: { value: CredentialExpiry; onChange: (value: CredentialExpiry) => void }) {
   const [timezone, setTimezone] = useState("UTC");
+  const now = useCurrentTime();
   useEffect(() => { const timer = window.setTimeout(() => setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"), 0); return () => window.clearTimeout(timer); }, []);
   const setMode = (mode: CredentialExpiry["mode"]) => {
     if (mode === "unknown") onChange({ mode, source: "manual" });
@@ -38,7 +40,7 @@ export function CredentialExpiryField({ value, onChange }: { value: CredentialEx
     {value.mode === "datetime" ? <div className={styles.formGrid}>
       <Form.Item label="过期日期与时间" required><DatePicker showTime value={value.expiresAt ? dayjs(value.expiresAt) : null} style={{ width: "100%" }} onChange={date => onChange({ mode: "datetime", expiresAt: date?.toDate().toISOString(), source: "manual" })}/></Form.Item>
       <Form.Item label="时区"><Input readOnly value={timezone}/></Form.Item>
-      {value.expiresAt ? <Alert className={styles.span2} type={Date.parse(value.expiresAt) <= Date.parse(initialIssuedAt) ? "error" : "success"} showIcon message={`本地时间：${new Date(value.expiresAt).toLocaleString()}`} description={`UTC：${value.expiresAt}`}/> : null}
+      {value.expiresAt ? <Alert className={styles.span2} type={now > 0 && Date.parse(value.expiresAt) <= now ? "error" : "success"} showIcon message={`本地时间：${new Date(value.expiresAt).toLocaleString()}`} description={`UTC：${value.expiresAt}`}/> : null}
     </div> : null}
     {value.mode === "duration" ? <div className={styles.formGrid}>
       <Form.Item label="起算时间" required><DatePicker showTime value={value.issuedAt ? dayjs(value.issuedAt) : null} style={{ width: "100%" }} onChange={date => updateDuration(date?.toDate().toISOString(), value.expiresInSeconds)}/></Form.Item>
@@ -97,10 +99,11 @@ export function CredentialsPanel({ template, onValidationChange }: { template: S
   const [prefix, setPrefix] = useState(initial.prefix);
   const [expiry, setExpiry] = useState<CredentialExpiry>(initial.expiry);
   const [customRows, setCustomRows] = useState<DraftKeyValue[]>([defaultKeyValue("row-1")]);
+  const now = useCurrentTime();
   const needsToken = auth === "bearer" || auth === "api_key";
   const duplicateCustom = customRows.some((row, index) => row.enabled && customRows.findIndex(other => other.enabled && other.location === row.location && other.name.trim() === row.name.trim()) !== index);
   const expiryComplete = expiry.mode === "unknown" || Boolean(expiry.expiresAt && (expiry.mode === "datetime" || (expiry.issuedAt && expiry.expiresInSeconds)));
-  const invalidByTime = Boolean(expiry.expiresAt && Date.parse(expiry.expiresAt) <= Date.parse(initialIssuedAt));
+  const invalidByTime = Boolean(now > 0 && expiry.expiresAt && Date.parse(expiry.expiresAt) <= now);
   const valid = auth === "none" || (needsToken && Boolean(token) && expiryComplete && !invalidByTime) || (auth === "basic" && Boolean(username && password) && expiryComplete && !invalidByTime) || (auth === "oauth2" && Boolean(clientId && clientSecret) && expiryComplete && !invalidByTime) || (auth === "custom" && customRows.length > 0 && customRows.every(row => !row.enabled || Boolean(row.name && row.value)) && !duplicateCustom && expiryComplete && !invalidByTime);
   useEffect(() => onValidationChange?.(valid), [onValidationChange, valid]);
   const selected = authOptions.find(option => option.value === auth)!;
@@ -126,7 +129,7 @@ export function CredentialsPanel({ template, onValidationChange }: { template: S
     {auth !== "none" ? <Card size="small" title="3. 有效期与更新"><CredentialExpiryField value={expiry} onChange={setExpiry}/><Form layout="vertical"><Form.Item label="更新方式"><Select defaultValue="manual" options={[{ label: "手动更新", value: "manual" }, { label: "供应商响应自动更新", value: "provider" }]}/></Form.Item></Form></Card> : null}
     <Card size="small" title="4. 注入方式或认证摘要">
       {auth === "api_key" ? <Form layout="vertical"><Form.Item label="注入模式"><Radio.Group value={injectionMode} onChange={event => setInjectionMode(event.target.value)} options={[{ label: "标准请求注入", value: "standard" }, { label: "协议专用注入", value: "protocol" }]}/></Form.Item>{injectionMode === "standard" ? <div className={styles.formGrid}><Form.Item label="注入位置"><Select value={location} options={[{ label: "Header", value: "header" }, { label: "Query", value: "query" }, { label: "Cookie", value: "cookie" }]} onChange={setLocation}/></Form.Item><Form.Item label="参数名称"><Input value={parameterName} onChange={event => setParameterName(event.target.value)}/></Form.Item><Form.Item label="可选值前缀"><Input value={prefix} placeholder="例如：Token" onChange={event => setPrefix(event.target.value)}/></Form.Item></div> : <Alert type="info" showIcon message={template === "evernote" ? "印象笔记 EDAM 协议专用注入" : "协议专用注入"} description={template === "evernote" ? "该 Token 由印象笔记 EDAM Executor 作为 authToken 参数使用，不会作为普通 Header 或 Query 参数注入。" : "由对应 Executor 或连接模板负责注入，不要求选择 Header、Query 或 Cookie。"}/>}</Form> : null}
-      <div className={styles.authSummary}><Typography.Text strong>调用预览</Typography.Text><Typography.Text code>{requestPreview(authConfig, template === "baidu" ? "/sse" : "/upstream")}</Typography.Text><ConnectionHealth status={credentialStatus(expiry)}/><Typography.Text type="secondary">配置只保存 credentialKey 引用；expires_in 仅作为元数据，不发送给上游。</Typography.Text></div>
+      <div className={styles.authSummary}><Typography.Text strong>调用预览</Typography.Text><Typography.Text code>{requestPreview(authConfig, template === "baidu" ? "/sse" : "/upstream")}</Typography.Text><ConnectionHealth status={credentialStatus(expiry, new Date(now))}/><Typography.Text type="secondary">配置只保存 credentialKey 引用；expires_in 仅作为元数据，不发送给上游。</Typography.Text></div>
     </Card>
     {invalidByTime ? <Alert type="error" showIcon message="凭证已过期" description="可保存为草稿，但禁止测试和调用。请更新凭证后继续。"/> : null}
   </div>;
