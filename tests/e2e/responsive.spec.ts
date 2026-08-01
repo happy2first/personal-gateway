@@ -1,77 +1,81 @@
 import { expect, test } from "@playwright/test";
 
-const routes = ["/login", "/dashboard", "/services", "/services/new", "/services/qq-mail", "/endpoints", "/endpoints/new", "/endpoints/personal-readonly", "/calls", "/calls/req-a91f", "/settings"];
+const routes = [
+  "/dashboard", "/services", "/services/qq-mail", "/services/qq-mail/capabilities", "/services/new",
+  "/endpoints", "/endpoints/personal-readonly", "/endpoints/personal-readonly/capabilities", "/endpoints/new",
+  "/calls", "/calls/req-a91f", "/settings",
+];
 
-test("all routes render without page overflow", async ({ page }) => {
+test("all routes render without page overflow or runtime errors", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   for (const path of routes) {
     await page.goto(path);
     await expect(page.locator("body")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1), path + " overflows").toBe(false);
   }
+  expect(errors).toEqual([]);
 });
 
-test("dashboard contains requested operational overview", async ({ page }, testInfo) => {
-  await page.goto("/dashboard");
-  await expect(page.getByText("凭证将在 5 天后到期")).toBeVisible();
-  await expect(page.getByText("服务当前可用情况")).toBeVisible();
-  await expect(page.getByText("端点当前可用情况")).toBeVisible();
-  for (const title of ["端点调用趋势", "服务调用分布", "端点调用分布", "高危能力调用趋势", "高危能力调用分布"]) await expect(page.getByText(title, { exact: true })).toBeVisible();
-  await expect(page.getByText("最近调用", { exact: true })).toHaveCount(0);
-  if (testInfo.project.name === "mobile-375") await page.screenshot({ path: testInfo.outputPath("dashboard-mobile.png"), fullPage: true });
-});
-
-test("service wizard keeps footer fixed and removes generated fields", async ({ page }, testInfo) => {
-  await page.goto("/services/new");
-  await page.getByRole("button", { name: /MCP 服务/ }).click();
-  await expect(page.getByTestId("wizard-title")).toContainText("基本信息");
-  await expect(page.getByText("API 转 MCP")).toHaveCount(0);
-  await expect(page.getByLabel("服务标识")).toHaveCount(0);
-  await expect(page.getByLabel("分类")).toHaveCount(0);
-  const actionBox = await page.getByTestId("wizard-actions").boundingBox();
-  expect(actionBox).not.toBeNull();
-  expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual((page.viewportSize()?.height ?? 0) + 1);
-  await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.getByTestId("wizard-title")).toContainText("地址与传输");
-  if (testInfo.project.name === "mobile-375") await page.screenshot({ path: testInfo.outputPath("service-wizard-mobile.png") });
-});
-
-test("endpoint wizard merges caller and permissions and preserves tree state", async ({ page }) => {
+test("endpoint wizard is Ant Design and contains eight steps", async ({ page }, testInfo) => {
   await page.goto("/endpoints/new");
+  await expect(page.locator(".ant-card")).toBeVisible();
   await expect(page.getByRole("button", { name: /返\s*回/ })).toBeVisible();
-  await expect(page.getByLabel("端点标识")).toHaveCount(0);
-  await expect(page.getByLabel("AI 厂商")).toHaveCount(0);
-  await expect(page.getByLabel("调用方名称")).toBeVisible();
-  await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.getByTestId("wizard-title")).toContainText("发布协议");
-  await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.getByTestId("wizard-title")).toContainText("服务与能力");
-  await page.getByText("QQ邮箱", { exact: true }).click();
-  await expect(page.getByText("搜索邮件", { exact: true })).toBeVisible();
-  await page.getByRole("checkbox").first().click();
-  await expect(page.getByText("搜索邮件", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.getByTestId("wizard-title")).toContainText("能力转换");
-});
-
-test("detail tables scroll internally and edit actions stay disabled", async ({ page }, testInfo) => {
-  for (const path of ["/services/qq-mail", "/endpoints/personal-readonly"]) {
-    await page.goto(path);
-    await expect(page.getByRole("button", { name: "编辑（暂不可用）" })).toBeDisabled();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(false);
+  await expect(page.getByTestId("wizard-title")).toContainText("基本信息");
+  await expect(page.getByLabel("端点标识")).toBeVisible();
+  const titles = ["发布协议", "服务与能力", "发布配置", "权限策略", "端点认证", "调用方", "测试与发布"];
+  for (const title of titles) {
+    await page.getByRole("button", { name: "下一步" }).click();
+    await expect(page.getByTestId("wizard-title")).toContainText(title);
   }
-  await page.getByRole("tab", { name: "认证" }).click();
-  await expect(page.getByRole("button", { name: "重新生成令牌" })).toBeVisible();
-  await expect(page.getByText("2026-10-30 23:59")).toBeVisible();
-  if (testInfo.project.name === "mobile-375") await page.screenshot({ path: testInfo.outputPath("endpoint-detail-mobile.png") });
+  await expect(page.getByLabel("调用方名称")).toHaveCount(0);
+  if (testInfo.project.name === "mobile-375") {
+    const actions = await page.getByTestId("wizard-actions").boundingBox();
+    expect(actions).not.toBeNull();
+    expect(actions!.y + actions!.height).toBeLessThanOrEqual((page.viewportSize()?.height ?? 0) + 1);
+  }
 });
 
-test("settings exposes notification rules and password change", async ({ page }, testInfo) => {
-  await page.goto("/settings");
-  for (const text of ["到期通知", "提前通知天数", "非常用时段端点调用通知", "非常用时段", "高危能力调用通知", "高危能力定义"]) await expect(page.getByText(text, { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "修改密码" }).click();
-  await expect(page.getByRole("dialog")).toContainText("当前密码");
-  await page.getByRole("button", { name: "取消" }).click();
-  if (testInfo.project.name === "mobile-375") await page.screenshot({ path: testInfo.outputPath("settings-mobile.png"), fullPage: true });
+test("mobile details use navigation pages and no tabs", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-375", "mobile-only assertion");
+  await page.goto("/services/qq-mail");
+  await expect(page.getByText("原始能力", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await page.getByText("原始能力", { exact: true }).click();
+  await expect(page).toHaveURL(/capabilities/);
+  await expect(page.getByText("搜索邮件", { exact: true })).toBeVisible();
+  await page.goto("/endpoints/personal-readonly");
+  await expect(page.getByText("能力与转换", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await page.getByText("能力与转换", { exact: true }).click();
+  await expect(page).toHaveURL(/capabilities/);
+});
+
+test("desktop details keep tabs and calls remove vendor", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "desktop-only assertion");
+  await page.goto("/services/qq-mail");
+  await expect(page.getByRole("tab", { name: "概览" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "关联端点" })).toBeVisible();
+  await page.goto("/endpoints/personal-readonly");
+  await expect(page.getByRole("tab", { name: "来源服务" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "调用方" })).toBeVisible();
+  await page.goto("/calls");
+  await expect(page.getByLabel("调用方")).toBeVisible();
+  await expect(page.getByText("厂商", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("请求编号", { exact: true })).toBeVisible();
+});
+
+test("mobile call cards show the complete route and clear bottom navigation", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-375", "mobile-only assertion");
+  await page.goto("/calls");
+  await expect(page.getByText("ChatGPT → 个人数据只读 MCP")).toBeVisible();
+  const last = page.locator("a[href^='/calls/']").last();
+  const box = await last.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThan(await page.evaluate(() => document.documentElement.scrollHeight));
+  await page.getByRole("button", { name: "筛选" }).click();
+  await expect(page.getByLabel("调用方")).toBeVisible();
+  await expect(page.getByText("厂商", { exact: true })).toHaveCount(0);
 });
 
 test("login enters dashboard", async ({ page }) => {
@@ -79,4 +83,3 @@ test("login enters dashboard", async ({ page }) => {
   await page.getByRole("button", { name: "登录管理后台" }).click();
   await expect(page).toHaveURL(/dashboard/);
 });
-

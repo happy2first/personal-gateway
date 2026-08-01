@@ -34,11 +34,11 @@ export const endpoints:Endpoint[]=[
 ];
 
 const raw=[
- ["req-a91f","19:42:16","OpenAI","ChatGPT","personal-readonly","qq-mail","mail-search","success",324,"返回 8 封邮件"],
- ["req-b27c","19:37:02","Anthropic","Claude","personal-readonly","baidu","file-search","success",486,"返回 12 个文件"],
- ["req-c83d","19:21:44","Google","Gemini","family","office-api","event-read","failed",1220,"上游连接超时"],
- ["req-d55e","18:58:30","OpenAI","私人 GPT","private-gpt","finance-mcp","quote-search","success",198,"返回行情数据"],
- ["req-e09a","18:46:11","OpenAI","ChatGPT","personal-readonly","evernote","note-search","success",412,"返回 5 条笔记"],
- ["req-f14b","17:32:08","Anthropic","Claude","personal-readonly","qq-mail","attachment-download","failed",36,"用户未确认操作"]
+ ["req-a91f","19:42:16","ChatGPT","personal-readonly","qq-mail","mail-search","success",324,"返回 8 封邮件"],
+ ["req-b27c","19:37:02","Claude","personal-readonly","baidu","file-search","success",486,"返回 12 个文件"],
+ ["req-c83d","19:21:44","Gemini","family","office-api","event-read","failed",1220,"上游连接超时"],
+ ["req-d55e","18:58:30","私人 GPT","private-gpt","finance-mcp","quote-search","success",198,"返回行情数据"],
+ ["req-e09a","18:46:11","ChatGPT","personal-readonly","evernote","note-search","success",412,"返回 5 条笔记"],
+ ["req-f14b","17:32:08","Claude","personal-readonly","qq-mail","attachment-download","failed",36,"用户未确认操作"]
 ] as const;
-export const calls:Call[]=raw.map(x=>{const service=services.find(s=>s.id===x[5])!;const endpoint=endpoints.find(e=>e.id===x[4])!;const endpointProtocol=endpoint.protocol;return {id:x[0],time:"2026-08-01 "+x[1],vendor:x[2],client:x[3],endpointId:x[4],endpointProtocol,serviceId:x[5],serviceType:service.type,capabilityId:x[6],externalCapability:endpointProtocol==="MCP"?x[6].replace(/-/g,"_"):"/"+x[6].replace(/-/g,"/"),conversionType:service.type+" → "+endpointProtocol,result:x[7],duration:x[8],message:x[9],upstreamError:x[7]==="failed"?x[9]:"—"}});
+export const calls:Call[]=raw.map(x=>{const service=services.find(s=>s.id===x[4])!;const endpoint=endpoints.find(e=>e.id===x[3])!;const endpointProtocol=endpoint.protocol;return {id:x[0],time:"2026-08-01 "+x[1],client:x[2],endpointId:x[3],endpointProtocol,serviceId:x[4],serviceType:service.type,capabilityId:x[5],externalCapability:endpointProtocol==="MCP"?x[5].replace(/-/g,"_"):"/"+x[5].replace(/-/g,"/"),conversionType:service.type+" → "+endpointProtocol,result:x[6],duration:x[7],message:x[8],upstreamError:x[6]==="failed"?x[8]:"—"}});
