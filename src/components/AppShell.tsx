@@ -3,7 +3,7 @@ import { ApiOutlined, DashboardOutlined, DatabaseOutlined, LeftOutlined, SafetyC
 import { Avatar, Button, Layout, Menu, Modal, Space, Tag } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import styles from "./AppShell.module.css";
 const nav=[
  {key:"/dashboard",label:"首页",icon:<DashboardOutlined/>},
@@ -13,7 +13,7 @@ const nav=[
  {key:"/settings",label:"设置",icon:<SettingOutlined/>}
 ];
 function active(path:string){const root=path.split("/").filter(Boolean)[0]||"dashboard";return "/"+root}
-export function BackButton({fallback,confirmLeave=false}:{fallback:string;confirmLeave?:boolean}){const router=useRouter();const go=()=>{const current=window.location.pathname;if(window.history.length<=1){router.push(fallback);return}router.back();window.setTimeout(()=>{if(window.location.pathname===current)router.replace(fallback)},450)};return <Button type="text" icon={<LeftOutlined/>} aria-label="返回" className={styles.back} onClick={()=>confirmLeave?Modal.confirm({title:"放弃未保存的更改？",content:"退出后，本次向导中尚未保存的内容将丢失。",okText:"放弃并退出",cancelText:"继续编辑",okButtonProps:{danger:true},onOk:go}):go()}>返回</Button>}
+export function BackButton({fallback,confirmLeave=false}:{fallback:string;confirmLeave?:boolean}){const router=useRouter();const [confirmOpen,setConfirmOpen]=useState(false);const go=()=>{const current=window.location.pathname;if(window.history.length<=1){router.push(fallback);return}router.back();window.setTimeout(()=>{if(window.location.pathname===current)router.replace(fallback)},450)};return <><Button type="text" icon={<LeftOutlined/>} aria-label="返回" className={styles.back} onClick={()=>confirmLeave?setConfirmOpen(true):go()}>返回</Button><Modal open={confirmOpen} title="放弃未保存的更改？" okText="放弃并退出" cancelText="继续编辑" okButtonProps={{danger:true}} onCancel={()=>setConfirmOpen(false)} onOk={()=>{setConfirmOpen(false);go()}}>退出后，本次向导中尚未保存的内容将丢失。</Modal></>}
 export function AppShell({path,children}:{path:string;children:ReactNode}){
  const selected=active(path);const parts=path.split("/").filter(Boolean);const secondary=parts.length>1;
  const fallback=parts.length>2&&(parts[0]==="services"||parts[0]==="endpoints")?"/"+parts[0]+"/"+parts[1]:selected;
