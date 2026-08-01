@@ -50,7 +50,8 @@ export function CredentialExpiryField({ value, onChange }: { value: CredentialEx
     else onChange({ mode: "datetime", expiresAt: iso, source: "manual" });
   };
   const localParts = (iso?: string) => {
-    const date = iso ? new Date(iso) : new Date();
+    if (!iso) return { date: "", time: "" };
+    const date = new Date(iso);
     const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString();
     return { date: local.slice(0, 10), time: local.slice(11, 16) };
   };
