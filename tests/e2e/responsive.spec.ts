@@ -36,6 +36,19 @@ test("endpoint wizard is Ant Design and contains eight steps", async ({ page }, 
   }
 });
 
+test("service wizard uses one selection to drive one form", async ({ page }) => {
+  await page.goto("/services/new");
+  await page.getByRole("button", { name: /API 服务/ }).click();
+  await expect(page.getByText("第 1/6 步 · 基本信息")).toBeVisible();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByTestId("wizard-title")).toContainText("API 定义");
+  await expect(page.getByText("OpenAPI 导入", { exact: true })).toBeVisible();
+  await expect(page.getByText("手工接口定义", { exact: true })).toHaveCount(0);
+  await page.getByText("手工配置", { exact: true }).click();
+  await expect(page.getByText("手工接口定义", { exact: true })).toBeVisible();
+  await expect(page.getByText("OpenAPI 导入", { exact: true })).toHaveCount(0);
+});
+
 test("mobile details use navigation pages and no tabs", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-375", "mobile-only assertion");
   await page.goto("/services/qq-mail");
